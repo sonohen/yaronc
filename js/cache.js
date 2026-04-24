@@ -11,7 +11,14 @@ const DEFAULT_RELAYS = [
 function loadRelays() {
   try {
     const saved = localStorage.getItem('nostr_relays');
-    if (saved) return JSON.parse(saved);
+    if (saved) {
+      const relays = JSON.parse(saved);
+      // HTTPS 環境では保存済みの ws:// を wss:// に昇格
+      if (location.protocol === 'https:') {
+        return relays.map(r => r.startsWith('ws://') ? 'wss://' + r.slice(5) : r);
+      }
+      return relays;
+    }
   } catch (_) {}
   return [...DEFAULT_RELAYS];
 }
