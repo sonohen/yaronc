@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nostr/o</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="loginScreen" class="login-screen">
+    <div class="login-card">
+      <div class="login-logo">⚡</div>
+      <h1>Nostr/o</h1>
+      <p class="login-desc">公開鍵でログインして、フォローしているアカウントの投稿を表示します</p>
+      <div class="login-input-wrap">
+        <input
+          type="text"
+          id="loginInput"
+          placeholder="npub1... または hex 公開鍵を入力"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <div id="loginError" class="login-error hidden"></div>
+      </div>
+      <button id="loginBtn" class="btn-primary">ログイン</button>
+      <p class="login-note">秘密鍵は不要です。読み取り専用でログインします。</p>
+    </div>
+  </div>
+
+  <header id="appHeader" class="hidden">
+    <div class="header-inner">
+      <h1>⚡ Nostr/o</h1>
+      <div class="header-search">
+        <div class="search-input-wrap">
+          <input type="text" id="headerSearchInput" placeholder="検索..." />
+          <button id="headerSearchClear" class="search-clear-btn hidden">✕</button>
+        </div>
+      </div>
+      <div class="header-right">
+        <div class="relay-status" id="relayStatus">
+          <span class="status-dot" id="statusDot"></span>
+          <span id="statusText">接続中...</span>
+        </div>
+        <button id="settingsBtn" class="settings-btn" aria-label="設定">⚙</button>
+        <div id="userInfo" class="user-info">
+          <div id="headerAvatar"></div>
+          <span id="headerName" class="header-name"></span>
+          <button id="logoutBtn" class="btn-logout">ログアウト</button>
+        </div>
+        <button id="hamburgerBtn" class="hamburger-btn" aria-label="メニュー">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ハンバーガードロワー（モバイル用ランキング） -->
+  <div id="drawer" class="drawer hidden">
+    <div id="drawerBackdrop" class="drawer-backdrop"></div>
+    <div class="drawer-panel">
+      <div class="drawer-header">
+        <span>メニュー</span>
+        <button id="drawerClose">✕</button>
+      </div>
+      <div class="drawer-user-section">
+        <div id="drawerAvatarWrap"></div>
+        <div class="drawer-user-info">
+          <span id="drawerUserName" class="drawer-username"></span>
+          <p id="drawerUserAbout" class="drawer-user-about"></p>
+        </div>
+      </div>
+      <div class="drawer-section-label">投稿ランキング</div>
+      <div id="drawerRankingList" class="ranking-list"></div>
+      <div class="drawer-actions">
+        <button id="drawerSettingsBtn" class="drawer-action-btn">⚙ 設定</button>
+        <button id="drawerLogout" class="drawer-action-btn drawer-logout">ログアウト</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- モバイル底部フィルターバー -->
+  <div id="mobileFilterBar" class="mobile-filter-bar hidden">
+    <div class="mobile-kind-filter">
+      <button class="kind-btn active" data-kind="all">すべて</button>
+      <button class="kind-btn" data-kind="1">投稿</button>
+      <button class="kind-btn" data-kind="6">RT</button>
+      <button class="kind-btn" data-kind="7">👍</button>
+    </div>
+    <button id="mobileRefreshBtn" class="mobile-refresh-btn">↺</button>
+  </div>
+
+  <main id="appMain" class="hidden">
+    <div class="feed">
+      <div class="feed-header">
+        <h2>タイムライン</h2>
+        <span id="postCount" class="post-count">0件</span>
+      </div>
+      <div id="authorFilterBanner" class="author-filter-banner hidden"></div>
+      <div id="newPostsBanner" class="new-posts-banner hidden"></div>
+      <div id="loadingIndicator" class="loading">
+        <div class="spinner"></div>
+        <p>投稿を取得中...</p>
+      </div>
+      <div id="postList" class="post-list"></div>
+      <div id="feedBottomSentinel" class="feed-bottom-sentinel"></div>
+      <div id="bottomLoadingIndicator" class="bottom-loading hidden">
+        <div class="spinner spinner-sm"></div>
+        <span>過去の投稿を取得中...</span>
+      </div>
+    </div>
+
+    <div class="sidebar">
+      <section class="filter-panel" data-panel="filter">
+        <h2><span class="drag-handle">⠿</span>フィルター</h2>
+        <div class="kind-filter">
+          <button class="kind-btn active" data-kind="all">すべて</button>
+          <button class="kind-btn" data-kind="1">投稿</button>
+          <button class="kind-btn" data-kind="6">リポスト</button>
+          <button class="kind-btn" data-kind="7">リアクション</button>
+        </div>
+        <label>
+          <span>表示件数</span>
+          <select id="limitSelect">
+            <option value="20">20件</option>
+            <option value="50" selected>50件</option>
+            <option value="100">100件</option>
+          </select>
+        </label>
+      </section>
+
+      <section class="ranking-panel" data-panel="ranking">
+        <h2><span class="drag-handle">⠿</span>投稿ランキング</h2>
+        <div id="rankingList" class="ranking-list"></div>
+      </section>
+
+      <section class="search-panel" data-panel="search">
+        <h2><span class="drag-handle">⠿</span>検索</h2>
+        <div class="search-box">
+          <div class="search-input-wrap">
+            <input type="text" id="searchInput" placeholder="キーワードを入力..." />
+            <button id="searchClear" class="search-clear-btn hidden">✕</button>
+          </div>
+          <button id="searchBtn">検索</button>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- 設定モーダル -->
+  <div id="settingsModal" class="modal hidden">
+    <div id="settingsModalBackdrop" class="modal-backdrop"></div>
+    <div class="modal-content settings-modal-content">
+      <button class="modal-close" id="settingsModalClose">✕</button>
+      <h2 class="settings-title">設定</h2>
+
+      <section class="settings-section">
+        <h3 class="settings-section-title">外観</h3>
+        <div class="settings-row">
+          <span class="settings-label">ダークモード</span>
+          <button id="themeToggle" class="theme-toggle-switch">
+            <span class="theme-toggle-track"><span class="theme-toggle-thumb"></span></span>
+            <span id="themeToggleLabel">ON</span>
+          </button>
+        </div>
+      </section>
+
+      <section class="settings-section">
+        <h3 class="settings-section-title">接続</h3>
+        <div class="settings-row">
+          <span class="settings-label">無操作で切断するまでの時間</span>
+          <select id="idleTimeoutSelect" class="settings-select">
+            <option value="0">切断しない</option>
+            <option value="5">5分</option>
+            <option value="10">10分</option>
+            <option value="15">15分</option>
+            <option value="30">30分</option>
+            <option value="60">60分</option>
+          </select>
+        </div>
+        <div id="idleStatus" class="idle-status"></div>
+      </section>
+
+      <section class="settings-section">
+        <h3 class="settings-section-title">リレー</h3>
+        <ul id="relayList" class="relay-list"></ul>
+        <div class="relay-add">
+          <input type="text" id="relayInput" placeholder="wss://relay.example.com" spellcheck="false" />
+          <button id="relayAddBtn">追加</button>
+        </div>
+        <div id="relayAddError" class="relay-add-error hidden"></div>
+      </section>
+    </div>
+  </div>
+
+  <div id="imageViewer" class="image-viewer hidden">
+    <div id="imageViewerBackdrop" class="modal-backdrop"></div>
+    <button id="imageViewerClose" class="image-viewer-close">✕</button>
+    <img id="imageViewerImg" src="" alt="" />
+  </div>
+
+  <div id="profileModal" class="modal hidden">
+    <div id="profileModalBackdrop" class="modal-backdrop"></div>
+    <div class="modal-content profile-modal-content">
+      <button class="modal-close" id="profileModalClose">✕</button>
+      <div id="profileModalBody"></div>
+      <div class="profile-tabs" id="profileTabs">
+        <button class="profile-tab active" data-kind="all">すべて</button>
+        <button class="profile-tab" data-kind="1">投稿</button>
+        <button class="profile-tab" data-kind="6">リポスト</button>
+        <button class="profile-tab" data-kind="7">リアクション</button>
+      </div>
+      <div id="profileModalPosts" class="profile-modal-posts"></div>
+    </div>
+  </div>
+
+  <div id="modal" class="modal hidden">
+    <div class="modal-backdrop" id="modalBackdrop"></div>
+    <div class="modal-content">
+      <button class="modal-close" id="modalClose">✕</button>
+      <div id="modalBody"></div>
+    </div>
+  </div>
+
+  <script src="js/bech32.js"></script>
+  <script src="js/cache.js"></script>
+  <script src="js/state.js"></script>
+  <script src="js/relay.js"></script>
+  <script src="js/render.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
