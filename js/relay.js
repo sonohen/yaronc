@@ -84,8 +84,16 @@ function connectRelay(url) {
   });
 }
 
+// HTTPS ページから ws:// への接続はブラウザにブロックされるため wss:// に昇格する
+function upgradeWsUrl(url) {
+  if (location.protocol === 'https:' && url.startsWith('ws://')) {
+    return 'wss://' + url.slice(5);
+  }
+  return url;
+}
+
 function addRelay(url) {
-  url = url.trim();
+  url = upgradeWsUrl(url.trim());
   const relayAddError = document.getElementById('relayAddError');
 
   if (!url.startsWith('wss://') && !url.startsWith('ws://')) {
@@ -499,20 +507,24 @@ function fetchTargetEvent(eventId, relayHints = []) {
       }
     }, 15000);
     // nevent の relay hint に未接続のものがあれば一時接続して取得
-    for (const relayUrl of relayHints.slice(0, 2)) {
+    for (const rawRelayUrl of relayHints.slice(0, 2)) {
+      const relayUrl = upgradeWsUrl(rawRelayUrl);
       if (activeRelays.includes(relayUrl)) continue; // 既存リレーは送信済み
-      if (connections.has(relayUrl)) continue;
+      if (connections.has(relayUrl)) continue;       // 接続試行中または接続済み
+      // connections に登録して重複接続を防ぐ
+      connections.set(relayUrl, { ws: null, status: 'connecting', temporary: true });
       const ws = new WebSocket(relayUrl);
+      connections.get(relayUrl).ws = ws;
       ws.addEventListener('open', () => {
         ws.send(JSON.stringify(req));
       });
       ws.addEventListener('message', e => {
         try { handleMessage(JSON.parse(e.data)); } catch (_) {}
       });
-      // 取得完了 or タイムアウトで閉じる
+      // 取得完了 or タイムアウトで閉じる（一時接続なので connections からも削除）
       const timer = setTimeout(() => ws.close(), 8000);
-      ws.addEventListener('close', () => clearTimeout(timer));
-      ws.addEventListener('error', () => clearTimeout(timer));
+      ws.addEventListener('close', () => { clearTimeout(timer); connections.delete(relayUrl); });
+      ws.addEventListener('error', () => { clearTimeout(timer); connections.delete(relayUrl); });
     }
   }, 300);
 }
