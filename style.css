@@ -150,6 +150,10 @@ body {
   line-height: 1.5;
 }
 
+/* Global hidden utility (for header / main which lack element-specific rules) */
+header.hidden,
+main.hidden { display: none !important; }
+
 /* Login screen */
 .login-screen {
   min-height: 100vh;
