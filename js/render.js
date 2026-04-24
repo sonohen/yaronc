@@ -17,19 +17,25 @@ function timeAgo(ts) {
 
 function formatDate(ts) { return new Date(ts * 1000).toLocaleString('ja-JP'); }
 
+function safeUrl(url) {
+  if (!url || typeof url !== 'string') return null;
+  return /^https?:\/\//i.test(url) ? url : null;
+}
+
 function avatarEl(pubkey, picture) {
   const div = document.createElement('div');
   div.className = 'avatar';
-  if (picture) {
+  const safePic = safeUrl(picture);
+  if (safePic) {
     const img = document.createElement('img');
-    img.src = picture;
+    img.src = safePic;
     img.loading = 'lazy';
     img.onerror = () => {
       div.innerHTML = '';
       div.textContent = pubkey.slice(0, 2).toUpperCase();
     };
     div.appendChild(img);
-  } else {
+  } else if (!safePic) {
     div.textContent = pubkey.slice(0, 2).toUpperCase();
     const hue = parseInt(pubkey.slice(0, 4), 16) % 360;
     div.style.background = `linear-gradient(135deg, hsl(${hue},70%,55%), hsl(${(hue + 120) % 360},70%,55%))`;
@@ -465,7 +471,7 @@ function createRepostCard(event) {
 
   const footer = document.createElement('div');
   footer.className = 'post-footer';
-  footer.innerHTML = `<span class="post-id">${event.id.slice(0, 16)}...</span><span class="post-kind">kind:6</span>`;
+  footer.innerHTML = `<span class="post-id">${escHtml(event.id.slice(0, 16))}...</span><span class="post-kind">kind:6</span>`;
 
   card.appendChild(repostBar);
   card.appendChild(timeLine);
@@ -596,7 +602,7 @@ function createReactionCard(event) {
 
   const footer = document.createElement('div');
   footer.className = 'post-footer';
-  footer.innerHTML = `<span class="post-id">${event.id.slice(0, 16)}...</span><span class="post-kind">kind:7</span>`;
+  footer.innerHTML = `<span class="post-id">${escHtml(event.id.slice(0, 16))}...</span><span class="post-kind">kind:7</span>`;
 
   card.appendChild(header);
   card.appendChild(body);
