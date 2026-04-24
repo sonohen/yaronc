@@ -59,6 +59,8 @@ function connectAllRelays() {
 }
 
 function connectRelay(url) {
+  if (!currentUserHex) return;
+
   const existing = connections.get(url);
   if (existing && existing.ws && existing.ws.readyState <= 1) return;
 
@@ -71,6 +73,10 @@ function connectRelay(url) {
   ws.addEventListener('open', () => {
     updateRelayStatus(url, 'ok');
     if (mainSubId && followedPubkeys.size > 0) sendMainSub(ws);
+    if (profileSubId && !profileModal.classList.contains('hidden') && profileCurrentPubkey) {
+      const req = ['REQ', profileSubId, { kinds: [1, 6, 7], authors: [profileCurrentPubkey], limit: 60 }];
+      ws.send(JSON.stringify(req));
+    }
   });
 
   ws.addEventListener('message', e => {
@@ -80,6 +86,14 @@ function connectRelay(url) {
   ws.addEventListener('error', () => updateRelayStatus(url, 'error'));
   ws.addEventListener('close', () => {
     updateRelayStatus(url, 'error');
+    if (loadingOlder) {
+      const anyOpen = [...connections.values()].some(c => c.ws && c.ws.readyState === WebSocket.OPEN);
+      if (!anyOpen) {
+        loadingOlder = false;
+        olderSubId = null;
+        bottomLoadingEl.classList.add('hidden');
+      }
+    }
     if (currentUserHex && activeRelays.includes(url)) setTimeout(() => connectRelay(url), 10000);
   });
 }
