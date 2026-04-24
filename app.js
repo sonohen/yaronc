@@ -853,7 +853,11 @@ function init() {
   initSidebarDnd();
 
   const verEl = document.getElementById('sidebarVersion');
-  if (verEl) verEl.innerHTML = `<span>Nostr/o</span><span>v${APP_VERSION} · ${APP_UPDATED}</span>`;
+  if (verEl) {
+    const version = typeof APP_VERSION !== 'undefined' ? APP_VERSION : 'dev';
+    const updated = typeof APP_UPDATED !== 'undefined' ? ` · ${APP_UPDATED}` : '';
+    verEl.innerHTML = `<span>Nostr/o</span><span>v${version}${updated}</span>`;
+  }
   const saved = localStorage.getItem('nostr_pubkey');
   if (saved) {
     loginInput.value = saved;
