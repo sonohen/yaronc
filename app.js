@@ -608,7 +608,7 @@ document.querySelectorAll('.kind-btn').forEach(btn => {
 
 // ---- Sidebar drag and drop ----
 function initSidebarDnd() {
-  const sidebar = document.querySelector('.sidebar');
+  const sidebar = document.querySelector('.sidebar-panels');
 
   const saved = (() => { try { return JSON.parse(localStorage.getItem('sidebar_order')); } catch (_) { return null; } })();
   if (Array.isArray(saved)) {

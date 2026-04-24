@@ -1,9 +1,5 @@
 'use strict';
 
-// ---- App version ----
-const APP_VERSION = '1.0.0';
-const APP_UPDATED = '2026-04-25';
-
 // ---- Config ----
 const DEFAULT_RELAYS = [
   'wss://relay.damus.io',

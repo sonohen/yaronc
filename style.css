@@ -582,21 +582,27 @@ main {
 .sidebar {
   display: flex;
   flex-direction: column;
-  gap: 16px;
   position: sticky;
   top: 72px;
+}
+
+.sidebar-panels {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 1;
 }
 
 .sidebar-version {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 4px;
+  padding: 10px 4px 4px;
+  margin-top: 12px;
   font-size: 11px;
   color: var(--text3);
   border-top: 1px solid var(--border);
-  margin-top: auto;
-  opacity: 0.7;
+  opacity: 0.6;
 }
 
 .relay-panel, .filter-panel, .search-panel {
