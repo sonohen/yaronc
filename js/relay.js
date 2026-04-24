@@ -187,6 +187,13 @@ function handleMessage(msg) {
 
   if (type === 'EVENT') {
     if (!event) return;
+    // 悪意あるリレーからの不正なフィールドを弾く
+    if (typeof event.id !== 'string' || !/^[0-9a-f]{64}$/.test(event.id)) return;
+    if (typeof event.pubkey !== 'string' || !/^[0-9a-f]{64}$/.test(event.pubkey)) return;
+    if (typeof event.kind !== 'number') return;
+    if (typeof event.content !== 'string') return;
+    if (typeof event.created_at !== 'number') return;
+    if (!Array.isArray(event.tags)) return;
 
     // targets- サブスクはseenEventsより先に処理する
     // （メインフィードで既に受信済みのイベントでもpendingTargetCardsを解決する必要があるため）

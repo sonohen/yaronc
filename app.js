@@ -85,18 +85,18 @@ function openModal(event) {
     <div class="post-header" style="margin-bottom:16px"></div>
     ${textContent ? `<div class="post-body" style="margin-bottom:16px">${escHtml(textContent)}</div>` : ''}
     <div class="modal-detail-label">イベントID</div>
-    <div class="modal-detail-value">${event.id}</div>
+    <div class="modal-detail-value">${escHtml(event.id)}</div>
     <div class="modal-detail-label">公開鍵</div>
-    <div class="modal-detail-value">${event.pubkey}</div>
+    <div class="modal-detail-value">${escHtml(event.pubkey)}</div>
     <div class="modal-detail-label">タイムスタンプ</div>
-    <div class="modal-detail-value">${formatDate(event.created_at)}</div>
+    <div class="modal-detail-value">${escHtml(formatDate(event.created_at))}</div>
   `;
 
   const ph = modalBody.querySelector('.post-header');
   ph.appendChild(avatarEl(event.pubkey, profile.picture));
   const meta = document.createElement('div');
   meta.className = 'post-meta';
-  meta.innerHTML = `<div class="post-author">${escHtml(name)}</div><div class="post-time">${formatDate(event.created_at)}</div>`;
+  meta.innerHTML = `<div class="post-author">${escHtml(name)}</div><div class="post-time">${escHtml(formatDate(event.created_at))}</div>`;
   ph.appendChild(meta);
 
   if (imageUrls.length > 0) {
@@ -247,7 +247,7 @@ function openProfileModal(pubkey) {
     <div class="profile-name">${escHtml(name)}</div>
     <div class="profile-handle">${escHtml(handle)}</div>
     ${profile.about ? `<div class="profile-about">${escHtml(profile.about)}</div>` : ''}
-    <div class="profile-pubkey">${pubkey.slice(0, 16)}...${pubkey.slice(-8)}</div>
+    <div class="profile-pubkey">${escHtml(pubkey.slice(0, 16))}...${escHtml(pubkey.slice(-8))}</div>
   `;
   if (profile.nip05 && !nip05Cache.has(pubkey)) verifyNip05(pubkey, profile.nip05);
 
