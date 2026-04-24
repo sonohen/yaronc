@@ -12,6 +12,8 @@ var followedPubkeys = new Set();
 var mainSubId = null;
 var olderSubId = null;
 var loadingOlder = false;
+var olderEoseExpected = 0;
+var olderEoseReceived = 0;
 
 var eventCache = new Map();
 var mentionCallbacks = new Map();

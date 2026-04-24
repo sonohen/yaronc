@@ -37,6 +37,8 @@ logoutBtn.addEventListener('click', () => {
   olderPostsBuffer = [];
   loadingOlder = false;
   olderSubId = null;
+  olderEoseExpected = 0;
+  olderEoseReceived = 0;
   seenEvents.clear();
   mainSubId = null;
   hideNewPostsBanner();
@@ -450,6 +452,8 @@ function fetchOlderPosts() {
   if (loadingOlder || followedPubkeys.size === 0 || posts.length === 0) return;
   loadingOlder = true;
   olderSubId = 'older-' + Math.random().toString(36).slice(2, 8);
+  olderEoseExpected = 0;
+  olderEoseReceived = 0;
   const oldestTs = Math.min(...posts.map(p => p.created_at));
   const limit = parseInt(limitSelect.value, 10);
   bottomLoadingEl.classList.remove('hidden');
@@ -461,7 +465,13 @@ function fetchOlderPosts() {
         until: oldestTs - 1,
         limit,
       }]));
+      olderEoseExpected++;
     }
+  }
+  if (olderEoseExpected === 0) {
+    loadingOlder = false;
+    olderSubId = null;
+    bottomLoadingEl.classList.add('hidden');
   }
 }
 
@@ -479,6 +489,8 @@ function doRefresh() {
   olderPostsBuffer = [];
   loadingOlder = false;
   olderSubId = null;
+  olderEoseExpected = 0;
+  olderEoseReceived = 0;
   hideNewPostsBanner();
   posts = [];
   seenEvents.clear();
