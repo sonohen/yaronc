@@ -587,6 +587,18 @@ main {
   top: 72px;
 }
 
+.sidebar-version {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 4px;
+  font-size: 11px;
+  color: var(--text3);
+  border-top: 1px solid var(--border);
+  margin-top: auto;
+  opacity: 0.7;
+}
+
 .relay-panel, .filter-panel, .search-panel {
   background: var(--surface);
   border: 1px solid var(--border);

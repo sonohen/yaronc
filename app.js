@@ -809,6 +809,9 @@ function init() {
   document.querySelectorAll('.kind-btn').forEach(b => b.classList.remove('active'));
   document.querySelectorAll(`.kind-btn[data-kind="${kindFilter}"]`).forEach(b => b.classList.add('active'));
   initSidebarDnd();
+
+  const verEl = document.getElementById('sidebarVersion');
+  if (verEl) verEl.innerHTML = `<span>Nostr/o</span><span>v${APP_VERSION} · ${APP_UPDATED}</span>`;
   const saved = localStorage.getItem('nostr_pubkey');
   if (saved) {
     loginInput.value = saved;
