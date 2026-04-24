@@ -725,6 +725,36 @@ drawerBackdrop.addEventListener('click', closeDrawer);
 drawerSettingsBtn.addEventListener('click', () => { closeDrawer(); openSettings(); });
 drawerLogout.addEventListener('click', () => { closeDrawer(); logoutBtn.click(); });
 
+// ---- Mobile: swipe gestures for drawer ----
+(function initSwipeGestures() {
+  let startX = 0;
+  let startY = 0;
+
+  document.addEventListener('touchstart', e => {
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+  }, { passive: true });
+
+  document.addEventListener('touchend', e => {
+    if (e.target.closest('input, textarea, select')) return;
+    if (!modal.classList.contains('hidden')) return;
+    if (!profileModal.classList.contains('hidden')) return;
+    if (!settingsModal.classList.contains('hidden')) return;
+
+    const dx = e.changedTouches[0].clientX - startX;
+    const dy = e.changedTouches[0].clientY - startY;
+
+    if (Math.abs(dy) > Math.abs(dx) * 0.8) return;
+    if (Math.abs(dx) < 50) return;
+
+    if (dx < 0 && drawer.classList.contains('hidden') && currentUserHex) {
+      openDrawer();
+    } else if (dx > 0 && !drawer.classList.contains('hidden')) {
+      closeDrawer();
+    }
+  }, { passive: true });
+})();
+
 // ---- Mobile: bottom filter bar ----
 document.querySelectorAll('.mobile-kind-filter .kind-btn').forEach(btn => {
   btn.addEventListener('click', () => {
