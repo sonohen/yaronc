@@ -11,6 +11,7 @@ var currentUserHex = null;
 var followedPubkeys = new Set();
 var mainSubId = null;
 var olderSubId = null;
+var contactListTs = 0; // 現在のフォローリスト (kind:3) の created_at
 var loadingOlder = false;
 var olderEoseExpected = 0;
 var olderEoseReceived = 0;

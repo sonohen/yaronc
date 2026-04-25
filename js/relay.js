@@ -96,6 +96,14 @@ function connectRelay(url) {
       const req = ['REQ', profileSubId, { kinds: [1, 6, 7], authors: [profileCurrentPubkey], limit: 60 }];
       ws.send(JSON.stringify(req));
     }
+    // フォロー変更の常時監視サブを再開
+    if (contactListTs > 0) {
+      ws.send(JSON.stringify(['REQ', CONTACT_LIVE_SUB, {
+        kinds: [3],
+        authors: [currentUserHex],
+        since: contactListTs,
+      }]));
+    }
   });
 
   ws.addEventListener('message', e => {
@@ -164,7 +172,8 @@ function removeRelay(url) {
 }
 
 // ---- Contact list (kind:3) ----
-const CONTACT_SUB = 'contacts-fetch';
+const CONTACT_SUB      = 'contacts-fetch';
+const CONTACT_LIVE_SUB = 'contacts-live'; // 常時監視サブ（フォロー変更検知用）
 
 function fetchContactList(pubkey, retries = 0) {
   const MAX_RETRIES = 15; // 最大 15 × 800ms ≒ 12秒
@@ -192,17 +201,75 @@ function handleContactEvent(event) {
     .filter(t => t[0] === 'p' && t[1] && /^[0-9a-f]{64}$/.test(t[1]))
     .map(t => t[1]);
 
-  followedPubkeys = new Set(keys);
-  followedPubkeys.add(currentUserHex);
+  const newKeys = new Set(keys);
+  newKeys.add(currentUserHex);
 
-  for (const [, conn] of connections) {
-    if (conn.ws && conn.ws.readyState === WebSocket.OPEN) {
-      conn.ws.send(JSON.stringify(['CLOSE', CONTACT_SUB]));
-    }
+  // ── 初回ロード ──
+  if (contactListTs === 0) {
+    followedPubkeys = newKeys;
+    contactListTs = event.created_at;
+    closeSub(CONTACT_SUB);
+    fetchProfileImmediate(currentUserHex);
+    startMainFeed();
+    startContactLiveSub(); // 以降の変更を常時監視
+    return;
   }
 
-  fetchProfileImmediate(currentUserHex);
-  startMainFeed();
+  // ── ライブ更新：古いイベントは無視 ──
+  if (event.created_at <= contactListTs) return;
+  contactListTs = event.created_at;
+
+  const addedKeys   = [...newKeys].filter(k => !followedPubkeys.has(k));
+  const removedKeys = [...followedPubkeys].filter(k => !newKeys.has(k) && k !== currentUserHex);
+
+  if (addedKeys.length === 0 && removedKeys.length === 0) return;
+
+  followedPubkeys = newKeys;
+
+  // フォロー解除されたユーザーの投稿を除去
+  if (removedKeys.length > 0) {
+    const removedSet = new Set(removedKeys);
+    posts        = posts.filter(p => !removedSet.has(p.pubkey));
+    pendingPosts = pendingPosts.filter(p => !removedSet.has(p.pubkey));
+    renderPosts();
+  }
+
+  // メインサブを新しい authors リストで上書き（同じ subId で REQ を再送すると
+  // リレー側で古いサブが置き換えられる）
+  for (const [, conn] of connections) {
+    if (conn.ws?.readyState === WebSocket.OPEN) sendMainSub(conn.ws);
+  }
+
+  // 新規フォローの直近投稿を取得
+  if (addedKeys.length > 0) fetchNewFollowsPosts(addedKeys);
+
+  // ユーザーへ通知
+  showFollowChangeToast(addedKeys.length, removedKeys.length);
+}
+
+// フォローリスト更新の常時監視サブを開始（リレー再接続時にも呼ばれる）
+function startContactLiveSub() {
+  if (!currentUserHex || !contactListTs) return;
+  const req = ['REQ', CONTACT_LIVE_SUB, {
+    kinds: [3],
+    authors: [currentUserHex],
+    since: contactListTs, // 現在のリストより新しいものだけ受け取る
+  }];
+  for (const [, conn] of connections) {
+    if (conn.ws?.readyState === WebSocket.OPEN)
+      conn.ws.send(JSON.stringify(req));
+  }
+}
+
+// 新規フォローの直近投稿をまとめて取得（EOSE で自動クローズ）
+function fetchNewFollowsPosts(pubkeys) {
+  const subId = 'new-follows-' + Math.random().toString(36).slice(2, 8);
+  const limit = parseInt(limitSelect.value, 10);
+  const req = ['REQ', subId, { kinds: [1, 6, 7], authors: pubkeys, limit }];
+  for (const [, conn] of connections) {
+    if (conn.ws?.readyState === WebSocket.OPEN)
+      conn.ws.send(JSON.stringify(req));
+  }
 }
 
 function closeSub(subId) {
@@ -290,7 +357,8 @@ function handleMessage(msg) {
       return;
     }
 
-    if ((event.kind === 1 || event.kind === 6 || event.kind === 7) && subId === mainSubId) {
+    if ((event.kind === 1 || event.kind === 6 || event.kind === 7) &&
+        (subId === mainSubId || subId.startsWith('new-follows-'))) {
       if (event.kind === 6) {
         const targetId = (event.tags.find(t => t[0] === 'e') || [])[1];
         if (event.content) {
@@ -367,6 +435,7 @@ function handleMessage(msg) {
     if (subId.startsWith('replies-') ||
         subId.startsWith('targets-') ||
         subId.startsWith('profiles-') ||
+        subId.startsWith('new-follows-') ||
         subId === 'self-profile') {
       closeSub(subId);
     }

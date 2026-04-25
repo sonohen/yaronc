@@ -460,6 +460,25 @@ document.getElementById('imageViewerClose').addEventListener('click', closeImage
 document.getElementById('imageViewerBackdrop').addEventListener('click', closeImageViewer);
 
 // ---- New posts banner ----
+// ---- フォロー変更トースト通知 ----
+let _followToastTimer = null;
+function showFollowChangeToast(addedCount, removedCount) {
+  let existing = document.getElementById('followChangeToast');
+  if (!existing) {
+    existing = document.createElement('div');
+    existing.id = 'followChangeToast';
+    existing.className = 'follow-change-toast';
+    document.body.appendChild(existing);
+  }
+  const parts = [];
+  if (addedCount > 0)   parts.push(`+${addedCount}件フォロー`);
+  if (removedCount > 0) parts.push(`−${removedCount}件フォロー解除`);
+  existing.textContent = `フォロー中リストが更新されました（${parts.join('・')}）`;
+  existing.classList.add('visible');
+  clearTimeout(_followToastTimer);
+  _followToastTimer = setTimeout(() => existing.classList.remove('visible'), 4000);
+}
+
 function showNewPostsBanner() {
   const count = pendingPosts.length;
   newPostsBannerEl.textContent = `↑ ${count}件の新着`;
