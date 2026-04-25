@@ -98,9 +98,14 @@ function connectRelay(url) {
     try { handleMessage(JSON.parse(e.data)); } catch (_) {}
   });
 
-  ws.addEventListener('error', () => updateRelayStatus(url, 'error'));
+  ws.addEventListener('error', () => {
+    // 既に別の接続に置き換えられた古い ws のイベントは無視する
+    if (connections.get(url)?.ws !== ws) return;
+    updateRelayStatus(url, 'error');
+  });
   ws.addEventListener('close', () => {
-    if (connObj.closing) return;
+    // 既に別の接続に置き換えられた古い ws のイベントは無視する
+    if (connections.get(url)?.ws !== ws) return;
     updateRelayStatus(url, 'error');
 if (loadingOlder && olderEoseExpected > 0) {
   olderEoseExpected--;
