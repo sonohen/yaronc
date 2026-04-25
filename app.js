@@ -806,6 +806,38 @@ themeToggle.addEventListener('click', () => {
   localStorage.setItem('nostr_theme', isLight ? 'light' : 'dark');
 });
 
+// ---- Font size ----
+const FONT_SIZE_DEFAULT = 14;
+const FONT_SIZE_MIN = 10;
+const FONT_SIZE_MAX = 24;
+
+function applyFontSize(px) {
+  document.documentElement.style.setProperty('--font-size-base', px + 'px');
+  fontSizeInput.value = px;
+}
+
+function clampFontSize(v) {
+  return Math.max(FONT_SIZE_MIN, Math.min(FONT_SIZE_MAX, v));
+}
+
+fontSizeInput.addEventListener('change', () => {
+  const v = clampFontSize(parseInt(fontSizeInput.value, 10) || FONT_SIZE_DEFAULT);
+  applyFontSize(v);
+  localStorage.setItem('nostr_font_size', v);
+});
+
+fontSizeDownBtn.addEventListener('click', () => {
+  const v = clampFontSize((parseInt(fontSizeInput.value, 10) || FONT_SIZE_DEFAULT) - 1);
+  applyFontSize(v);
+  localStorage.setItem('nostr_font_size', v);
+});
+
+fontSizeUpBtn.addEventListener('click', () => {
+  const v = clampFontSize((parseInt(fontSizeInput.value, 10) || FONT_SIZE_DEFAULT) + 1);
+  applyFontSize(v);
+  localStorage.setItem('nostr_font_size', v);
+});
+
 // ---- Idle disconnect ----
 idleTimeoutSelect.value = String(idleMinutes);
 idleTimeoutSelect.addEventListener('change', () => {
@@ -849,6 +881,8 @@ function resetIdleTimer() {
 // ---- Boot ----
 function init() {
   applyTheme(localStorage.getItem('nostr_theme') === 'light');
+  const savedFontSize = parseInt(localStorage.getItem('nostr_font_size'), 10);
+  applyFontSize(!isNaN(savedFontSize) ? clampFontSize(savedFontSize) : FONT_SIZE_DEFAULT);
   document.querySelectorAll('.kind-btn').forEach(b => b.classList.remove('active'));
   document.querySelectorAll(`.kind-btn[data-kind="${kindFilter}"]`).forEach(b => b.classList.add('active'));
   initSidebarDnd();

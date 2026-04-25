@@ -19,6 +19,7 @@
   --yellow: #f59e0b;
   --radius: 12px;
   --radius-sm: 8px;
+  --font-size-base: 14px;
 }
 
 :root.light header {
@@ -108,6 +109,49 @@
   min-height: 16px;
 }
 
+/* Font size control */
+.font-size-control {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.font-size-btn {
+  width: 26px;
+  height: 26px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.2s, color 0.2s;
+  flex-shrink: 0;
+}
+.font-size-btn:hover { border-color: var(--accent); color: var(--accent); }
+.font-size-input {
+  width: 52px;
+  text-align: center;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 4px 6px;
+  font-size: 13px;
+  outline: none;
+  -moz-appearance: textfield;
+}
+.font-size-input::-webkit-inner-spin-button,
+.font-size-input::-webkit-outer-spin-button { -webkit-appearance: none; }
+.font-size-input:focus { border-color: var(--accent); }
+.font-size-unit {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
 /* Theme toggle switch */
 .theme-toggle-switch {
   display: flex;
@@ -146,7 +190,7 @@ body {
   background: var(--bg);
   color: var(--text);
   min-height: 100vh;
-  font-size: 14px;
+  font-size: var(--font-size-base);
   line-height: 1.5;
 }
 
@@ -1126,7 +1170,7 @@ select:focus { border-color: var(--accent); }
 }
 
 .post-body {
-  font-size: 14px;
+  font-size: var(--font-size-base);
   line-height: 1.7;
   color: var(--text);
   word-break: break-word;

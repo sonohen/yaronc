@@ -93,6 +93,9 @@ var settingsModalBackdrop = document.getElementById('settingsModalBackdrop');
 var themeToggle          = document.getElementById('themeToggle');
 var idleTimeoutSelect    = document.getElementById('idleTimeoutSelect');
 var idleStatusEl         = document.getElementById('idleStatus');
+var fontSizeInput        = document.getElementById('fontSizeInput');
+var fontSizeDownBtn      = document.getElementById('fontSizeDown');
+var fontSizeUpBtn        = document.getElementById('fontSizeUp');
 
 // Header search
 var headerSearchInput    = document.getElementById('headerSearchInput');
