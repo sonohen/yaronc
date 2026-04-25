@@ -107,13 +107,13 @@ function connectRelay(url) {
     // 既に別の接続に置き換えられた古い ws のイベントは無視する
     if (connections.get(url)?.ws !== ws) return;
     updateRelayStatus(url, 'error');
-if (loadingOlder && olderEoseExpected > 0) {
-  olderEoseExpected--;
-  if (olderEoseReceived >= olderEoseExpected) flushOlderPosts();
-}
-// アイドル切断中は自動再接続しない
-if (currentUserHex && activeRelays.includes(url) && !isIdleDisconnected)
-  setTimeout(() => connectRelay(url), 10000);
+    if (loadingOlder && olderEoseExpected > 0) {
+      olderEoseExpected--;
+      if (olderEoseReceived >= olderEoseExpected) flushOlderPosts();
+    }
+    // アイドル切断中は自動再接続しない
+    if (currentUserHex && activeRelays.includes(url) && !isIdleDisconnected)
+      setTimeout(() => connectRelay(url), 10000);
   });
 }
 
