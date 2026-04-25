@@ -65,8 +65,8 @@ function flushOlderPosts() {
   olderEoseReceived = 0;
   bottomLoadingEl.classList.add('hidden');
   if (olderPostsBuffer.length > 0) {
-    // 既存 posts に同じ ID がある場合は追加しない（複数リレーからの重複を防ぐ）
-    const existingIds = new Set(posts.map(p => p.id));
+    // posts と pendingPosts 両方を確認（pendingPosts にある投稿が二重追加されるのを防ぐ）
+    const existingIds = new Set([...posts, ...pendingPosts].map(p => p.id));
     for (const e of olderPostsBuffer) {
       if (!existingIds.has(e.id)) { posts.push(e); existingIds.add(e.id); }
     }
