@@ -516,7 +516,12 @@ function fetchOlderPosts() {
   olderSubId = 'older-' + Math.random().toString(36).slice(2, 8);
   olderEoseExpected = 0;
   olderEoseReceived = 0;
-  const oldestTs = Math.min(...posts.map(p => p.created_at));
+  // kind=7 リアクションは古い投稿への反応で古い timestamp を持つ場合があり、
+  // それを使うと pagination の境界がずれて kind=1/6 の投稿が抜ける。
+  const feedPosts = posts.filter(p => p.kind === 1 || p.kind === 6);
+  const oldestTs = feedPosts.length > 0
+    ? Math.min(...feedPosts.map(p => p.created_at))
+    : Math.min(...posts.map(p => p.created_at));
   const limit = parseInt(limitSelect.value, 10);
   bottomLoadingEl.classList.remove('hidden');
   for (const [, conn] of connections) {
