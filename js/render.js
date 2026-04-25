@@ -28,12 +28,14 @@ function avatarEl(pubkey, picture) {
   const safePic = safeUrl(picture);
   if (safePic) {
     const img = document.createElement('img');
-    img.src = safePic;
     img.loading = 'lazy';
     img.onerror = () => {
       div.innerHTML = '';
       div.textContent = pubkey.slice(0, 2).toUpperCase();
+      const hue = parseInt(pubkey.slice(0, 4), 16) % 360;
+      div.style.background = `linear-gradient(135deg, hsl(${hue},70%,55%), hsl(${(hue + 120) % 360},70%,55%))`;
     };
+    icSetSrc(img, safePic); // キャッシュ経由でロード
     div.appendChild(img);
   } else {
     div.textContent = pubkey.slice(0, 2).toUpperCase();
