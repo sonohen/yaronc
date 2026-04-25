@@ -68,7 +68,7 @@ function flushOlderPosts() {
     // 既存 posts に同じ ID がある場合は追加しない（複数リレーからの重複を防ぐ）
     const existingIds = new Set(posts.map(p => p.id));
     for (const e of olderPostsBuffer) {
-      if (!existingIds.has(e.id)) posts.push(e);
+      if (!existingIds.has(e.id)) { posts.push(e); existingIds.add(e.id); }
     }
     olderPostsBuffer = [];
     posts.sort((a, b) => b.created_at - a.created_at);
@@ -334,6 +334,25 @@ function handleMessage(msg) {
       return;
     }
 
+    // Older posts fetched via until filter
+    // seenEvents チェックより先に処理する。replies- や targets- サブで seenEvents に
+    // 登録された投稿がスクロール時に再取得できなくなる（穴が開く）バグを防ぐ。
+    if ((event.kind === 1 || event.kind === 6 || event.kind === 7) && subId === olderSubId) {
+      if (!seenEvents.has(event.id)) {
+        seenEvents.add(event.id);
+        if (event.kind === 6 && event.content) {
+          try {
+            const orig = JSON.parse(event.content);
+            if (orig && orig.id) { eventCache.set(orig.id, orig); fetchProfile(orig.pubkey); }
+          } catch (_) {}
+        }
+        if (event.kind === 7) addToReactionMap(event);
+      }
+      fetchProfile(event.pubkey);
+      olderPostsBuffer.push(event);
+      return;
+    }
+
     if (seenEvents.has(event.id)) return;
     seenEvents.add(event.id);
 
@@ -391,19 +410,6 @@ function handleMessage(msg) {
         if (posts.length > limit * 2) posts = posts.slice(0, limit * 2);
         renderPosts();
       }
-    }
-
-    // Older posts fetched via until filter
-    if ((event.kind === 1 || event.kind === 6 || event.kind === 7) && subId === olderSubId) {
-      if (event.kind === 6 && event.content) {
-        try {
-          const orig = JSON.parse(event.content);
-          if (orig && orig.id) { eventCache.set(orig.id, orig); fetchProfile(orig.pubkey); }
-        } catch (_) {}
-      }
-      if (event.kind === 7) addToReactionMap(event);
-      fetchProfile(event.pubkey);
-      olderPostsBuffer.push(event);
     }
 
     // Replies fetched via #e filter
