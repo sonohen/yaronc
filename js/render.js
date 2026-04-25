@@ -431,6 +431,37 @@ function buildYoutubeEmbeds(urls) {
   return wrap.childElementCount > 0 ? wrap : null;
 }
 
+// GIF URL かどうか判定
+function isGifUrl(url) {
+  return /\.gif(\?|#|$)/i.test(url);
+}
+
+// GIF の初回フレームを canvas に焼いて静止画として返す。
+// CORS 非対応の場合は元 URL にフォールバック（アニメーション再生）。
+function loadStaticGifFrame(url, imgEl, wrapEl) {
+  const tmp = new Image();
+  tmp.crossOrigin = 'anonymous';
+  tmp.onload = () => {
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width  = tmp.naturalWidth  || 320;
+      canvas.height = tmp.naturalHeight || 240;
+      canvas.getContext('2d').drawImage(tmp, 0, 0);
+      imgEl.src = canvas.toDataURL('image/png');
+      // GIF バッジを表示（アニメーションが止まっていることをユーザーに伝える）
+      const badge = document.createElement('span');
+      badge.className = 'gif-badge';
+      badge.textContent = 'GIF';
+      wrapEl.appendChild(badge);
+    } catch (_) {
+      // SecurityError（CORS 非対応） → アニメーションのまま表示
+      imgEl.src = url;
+    }
+  };
+  tmp.onerror = () => { imgEl.src = url; };
+  tmp.src = url;
+}
+
 function buildImageGrid(urls, openFn) {
   if (urls.length === 0) return null;
   const grid = document.createElement('div');
@@ -439,9 +470,15 @@ function buildImageGrid(urls, openFn) {
     const wrap = document.createElement('div');
     wrap.className = 'post-image-wrap';
     const img = document.createElement('img');
-    img.src = url;
     img.alt = '';
     img.loading = 'lazy';
+    // GIFアニメーション OFF かつ GIF URL の場合は静止画に変換
+    if (isGifUrl(url) && window.nostrGifAnimation === false) {
+      loadStaticGifFrame(url, img, wrap);
+    } else {
+      img.src = url;
+    }
+    // クリック時は常に元の URL（アニメーション）をビューアで開く
     img.addEventListener('click', e => { e.stopPropagation(); openFn(url); });
     wrap.appendChild(img);
     grid.appendChild(wrap);

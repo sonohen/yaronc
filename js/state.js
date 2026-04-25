@@ -98,6 +98,8 @@ var idleStatusEl         = document.getElementById('idleStatus');
 var fontSizeInput        = document.getElementById('fontSizeInput');
 var fontSizeDownBtn      = document.getElementById('fontSizeDown');
 var fontSizeUpBtn        = document.getElementById('fontSizeUp');
+var gifToggle            = document.getElementById('gifToggle');
+var gifToggleLabel       = document.getElementById('gifToggleLabel');
 
 // Header search
 var headerSearchInput    = document.getElementById('headerSearchInput');
