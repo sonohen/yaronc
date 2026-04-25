@@ -28,6 +28,7 @@ var profileSubId = null;
 var profileCurrentPubkey = null;
 var profileKindFilter = 'all';
 var profileEventCache = new Map();
+var profileLoadTimer = null; // スピナー自動消去タイマー
 
 // Idle disconnect state
 var idleMinutes = parseInt(localStorage.getItem('nostr_idle_timeout') || '0', 10);

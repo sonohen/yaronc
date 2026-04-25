@@ -225,7 +225,9 @@ function vsCollapse(card) {
 }
 
 function vsRestore(ph) {
-  const event = posts.find(p => p.id === ph.dataset.eventId);
+  const eventId = ph.dataset.eventId;
+  // posts 更新中でも eventCache にはイベントが残っているため、両方を参照する
+  const event = posts.find(p => p.id === eventId) || eventCache.get(eventId);
   if (!event) return;
   let card;
   if (event.kind === 6) card = createRepostCard(event);

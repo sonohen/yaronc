@@ -229,7 +229,13 @@ document.addEventListener('keydown', e => {
 });
 
 // ---- Profile modal ----
+// profileEventCache のキャッシュ上限（pubkey 数）
+const PROFILE_EVENT_CACHE_MAX = 50;
+
 function openProfileModal(pubkey) {
+  // 同じプロフィールが既に表示中なら再フェッチしない
+  const alreadyOpen = !profileModal.classList.contains('hidden') && profileCurrentPubkey === pubkey;
+
   const profile = profileCache.get(pubkey) || {};
   const name = profile.display_name || profile.name || shortPubkey(pubkey);
   const handle = profile.name ? `@${profile.name.split('@')[0]}` : shortPubkey(pubkey);
@@ -299,23 +305,48 @@ function openProfileModal(pubkey) {
     b.classList.toggle('active', b.dataset.kind === 'all');
   });
 
-  const cached = posts.filter(p => p.pubkey === pubkey);
-  if (!profileEventCache.has(pubkey)) profileEventCache.set(pubkey, []);
-  for (const ev of cached) {
-    const arr = profileEventCache.get(pubkey);
-    if (!arr.find(e => e.id === ev.id)) arr.push(ev);
+  // profileEventCache のサイズ上限を超えたら最も古い pubkey を削除する
+  if (!profileEventCache.has(pubkey) && profileEventCache.size >= PROFILE_EVENT_CACHE_MAX) {
+    const oldestKey = profileEventCache.keys().next().value;
+    profileEventCache.delete(oldestKey);
   }
+  // Map<eventId, event> で O(1) 重複排除
+  if (!profileEventCache.has(pubkey)) profileEventCache.set(pubkey, new Map());
+
+  // タイムライン上の投稿をキャッシュに追加
+  const cached = posts.filter(p => p.pubkey === pubkey);
+  const evMap = profileEventCache.get(pubkey);
+  for (const ev of cached) evMap.set(ev.id, ev);
+
   renderProfilePosts();
 
-  if (profileEventCache.get(pubkey).length === 0) {
-    profileModalPosts.innerHTML = '<div class="profile-posts-loading"><div class="spinner"></div></div>';
+  if (evMap.size === 0) {
+    showProfileSpinner();
   }
 
   profileModal.classList.remove('hidden');
-  fetchUserPosts(pubkey);
+  // 同一プロフィールが既に開いている場合は再フェッチ不要
+  if (!alreadyOpen) fetchUserPosts(pubkey);
+}
+
+// スピナーを表示し、8秒後に自動消去する
+function showProfileSpinner() {
+  clearTimeout(profileLoadTimer);
+  profileModalPosts.innerHTML = '<div class="profile-posts-loading"><div class="spinner"></div></div>';
+  profileLoadTimer = setTimeout(() => {
+    const spinner = profileModalPosts.querySelector('.profile-posts-loading');
+    if (!spinner) return; // すでに投稿が表示されていれば何もしない
+    const evMap = profileEventCache.get(profileCurrentPubkey);
+    const hasEvents = evMap && evMap.size > 0;
+    if (!hasEvents) {
+      profileModalPosts.innerHTML =
+        '<div class="profile-empty">投稿が見つかりませんでした</div>';
+    }
+  }, 8000);
 }
 
 function fetchUserPosts(pubkey) {
+  clearTimeout(profileLoadTimer); // 前のタイマーをキャンセル
   if (profileSubId) {
     for (const [, conn] of connections) {
       if (conn.ws && conn.ws.readyState === WebSocket.OPEN)
@@ -331,12 +362,17 @@ function fetchUserPosts(pubkey) {
 }
 
 function renderProfilePosts() {
-  const all = profileEventCache.get(profileCurrentPubkey) || [];
+  const all = [...(profileEventCache.get(profileCurrentPubkey) || new Map()).values()];
   const filtered = profileKindFilter === 'all' ? all : all.filter(e => String(e.kind) === profileKindFilter);
   const sorted = [...filtered].sort((a, b) => b.created_at - a.created_at);
 
-  profileModalPosts.innerHTML = '';
-  if (sorted.length === 0) return;
+  // スピナー表示中（まだフェッチ中）なら 0 件でも上書きしない
+  if (sorted.length === 0) {
+    if (!profileModalPosts.querySelector('.profile-posts-loading')) {
+      profileModalPosts.innerHTML = '';
+    }
+    return;
+  }
 
   for (const ev of sorted) {
     const card = createProfileMiniCard(ev);
@@ -355,11 +391,11 @@ function handleProfileSubEvent(event) {
   if (profileModal.classList.contains('hidden')) return;
   if (event.pubkey !== profileCurrentPubkey) return;
 
-  if (!profileEventCache.has(event.pubkey)) profileEventCache.set(event.pubkey, []);
-  const arr = profileEventCache.get(event.pubkey);
-  if (arr.find(e => e.id === event.id)) return;
+  if (!profileEventCache.has(event.pubkey)) profileEventCache.set(event.pubkey, new Map());
+  const evMap = profileEventCache.get(event.pubkey);
+  if (evMap.has(event.id)) return; // O(1) 重複排除
 
-  arr.push(event);
+  evMap.set(event.id, event);
 
   if (event.kind === 6) {
     const targetId = (event.tags.find(t => t[0] === 'e') || [])[1];
@@ -372,13 +408,20 @@ function handleProfileSubEvent(event) {
 
   fetchProfile(event.pubkey);
 
+  // 初回イベント受信でスピナーとタイマーを解除
   const loading = profileModalPosts.querySelector('.profile-posts-loading');
-  if (loading) loading.remove();
+  if (loading) {
+    clearTimeout(profileLoadTimer);
+    profileLoadTimer = null;
+    loading.remove();
+  }
 
   renderProfilePosts();
 }
 
 function closeProfileModal() {
+  clearTimeout(profileLoadTimer);
+  profileLoadTimer = null;
   profileModal.classList.add('hidden');
   if (profileSubId) {
     for (const [, conn] of connections) {
