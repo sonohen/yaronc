@@ -1799,7 +1799,7 @@ select:focus { border-color: var(--accent); }
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1.5px solid var(--bg-primary);
+  border: 1.5px solid var(--bg);
   pointer-events: none;
   z-index: 1;
 }

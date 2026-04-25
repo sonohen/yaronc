@@ -35,7 +35,7 @@ function avatarEl(pubkey, picture) {
       div.textContent = pubkey.slice(0, 2).toUpperCase();
     };
     div.appendChild(img);
-  } else if (!safePic) {
+  } else {
     div.textContent = pubkey.slice(0, 2).toUpperCase();
     const hue = parseInt(pubkey.slice(0, 4), 16) % 360;
     div.style.background = `linear-gradient(135deg, hsl(${hue},70%,55%), hsl(${(hue + 120) % 360},70%,55%))`;
@@ -182,6 +182,10 @@ function renderRanking(filtered) {
 
   if (drawerRanking && !drawer.classList.contains('hidden')) {
     drawerRanking.innerHTML = rankingListEl.innerHTML;
+    drawerRanking.querySelectorAll('.ranking-item').forEach((item, i) => {
+      const orig = rankingListEl.querySelectorAll('.ranking-item')[i];
+      if (orig) item.addEventListener('click', () => { closeDrawer(); orig.click(); });
+    });
   }
 }
 
@@ -315,13 +319,13 @@ function youtubeVideoId(url) {
 
 function textWithoutImageUrls(text, urls) {
   let result = text;
-  for (const url of urls) result = result.replace(url, '');
+  for (const url of urls) result = result.split(url).join('');
   return result.replace(/\n{3,}/g, '\n\n').trim();
 }
 
 function textWithoutMediaUrls(text, imageUrls, tweetUrls, nostrRefs = [], youtubeUrls = [], profileRefs = []) {
   let result = text;
-  for (const url of [...imageUrls, ...tweetUrls, ...nostrRefs, ...youtubeUrls, ...profileRefs]) result = result.replace(url, '');
+  for (const url of [...imageUrls, ...tweetUrls, ...nostrRefs, ...youtubeUrls, ...profileRefs]) result = result.split(url).join('');
   return result.replace(/\n{3,}/g, '\n\n').trim();
 }
 

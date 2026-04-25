@@ -58,19 +58,40 @@ function connectAllRelays() {
   for (const url of activeRelays) connectRelay(url);
 }
 
+function flushOlderPosts() {
+  loadingOlder = false;
+  olderSubId = null;
+  olderEoseExpected = 0;
+  olderEoseReceived = 0;
+  bottomLoadingEl.classList.add('hidden');
+  if (olderPostsBuffer.length > 0) {
+    for (const e of olderPostsBuffer) posts.push(e);
+    olderPostsBuffer = [];
+    posts.sort((a, b) => b.created_at - a.created_at);
+    renderPosts();
+  }
+}
+
 function connectRelay(url) {
+  if (!currentUserHex) return;
+
   const existing = connections.get(url);
   if (existing && existing.ws && existing.ws.readyState <= 1) return;
 
-  connections.set(url, { ws: null, status: 'connecting' });
+  const connObj = { ws: null, status: 'connecting', closing: false };
+  connections.set(url, connObj);
   renderRelayList();
 
   const ws = new WebSocket(url);
-  connections.get(url).ws = ws;
+  connObj.ws = ws;
 
   ws.addEventListener('open', () => {
     updateRelayStatus(url, 'ok');
     if (mainSubId && followedPubkeys.size > 0) sendMainSub(ws);
+    if (profileSubId && !profileModal.classList.contains('hidden') && profileCurrentPubkey) {
+      const req = ['REQ', profileSubId, { kinds: [1, 6, 7], authors: [profileCurrentPubkey], limit: 60 }];
+      ws.send(JSON.stringify(req));
+    }
   });
 
   ws.addEventListener('message', e => {
@@ -86,9 +107,13 @@ function connectRelay(url) {
     // 既に別の接続に置き換えられた古い ws のイベントは無視する
     if (connections.get(url)?.ws !== ws) return;
     updateRelayStatus(url, 'error');
-    // アイドル切断中は自動再接続しない
-    if (currentUserHex && activeRelays.includes(url) && !isIdleDisconnected)
-      setTimeout(() => connectRelay(url), 10000);
+if (loadingOlder && olderEoseExpected > 0) {
+  olderEoseExpected--;
+  if (olderEoseReceived >= olderEoseExpected) flushOlderPosts();
+}
+// アイドル切断中は自動再接続しない
+if (currentUserHex && activeRelays.includes(url) && !isIdleDisconnected)
+  setTimeout(() => connectRelay(url), 10000);
   });
 }
 
@@ -126,7 +151,7 @@ function removeRelay(url) {
   saveRelays();
   const conn = connections.get(url);
   if (conn && conn.ws) {
-    conn.ws.onclose = null;
+    conn.closing = true;
     conn.ws.close();
   }
   connections.delete(url);
@@ -174,6 +199,13 @@ function handleContactEvent(event) {
 
   fetchProfileImmediate(currentUserHex);
   startMainFeed();
+}
+
+function closeSub(subId) {
+  for (const [, conn] of connections) {
+    if (conn.ws && conn.ws.readyState === WebSocket.OPEN)
+      conn.ws.send(JSON.stringify(['CLOSE', subId]));
+  }
 }
 
 // ---- Main feed subscription ----
@@ -322,15 +354,17 @@ function handleMessage(msg) {
   }
 
   if (type === 'EOSE' && subId === olderSubId) {
-    loadingOlder = false;
-    bottomLoadingEl.classList.add('hidden');
-    if (olderPostsBuffer.length > 0) {
-      for (const e of olderPostsBuffer) posts.push(e);
-      olderPostsBuffer = [];
-      posts.sort((a, b) => b.created_at - a.created_at);
-      renderPosts();
+    olderEoseReceived++;
+    if (olderEoseReceived >= olderEoseExpected) flushOlderPosts();
+  }
+
+  if (type === 'EOSE') {
+    if (subId.startsWith('replies-') ||
+        subId.startsWith('targets-') ||
+        subId.startsWith('profiles-') ||
+        subId === 'self-profile') {
+      closeSub(subId);
     }
-    olderSubId = null;
   }
 }
 
@@ -513,6 +547,7 @@ function fetchTargetEvent(eventId, relayHints = []) {
         }
         pendingTargetCards.delete(id);
       }
+      closeSub(subId);
     }, 15000);
     // nevent の relay hint に未接続のものがあれば一時接続して取得
     for (const rawRelayUrl of relayHints.slice(0, 2)) {
