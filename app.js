@@ -812,6 +812,16 @@ const FONT_SIZE_MIN = 10;
 const FONT_SIZE_MAX = 24;
 
 function applyFontSize(px) {
+  // <style>タグ経由で直接ルールを書き込む
+  // CSS変数だけだとモバイルブラウザで再計算がトリガーされないことがあるため
+  let styleEl = document.getElementById('nostr-font-size-style');
+  if (!styleEl) {
+    styleEl = document.createElement('style');
+    styleEl.id = 'nostr-font-size-style';
+    document.head.appendChild(styleEl);
+  }
+  styleEl.textContent = `body { font-size: ${px}px; } .post-body { font-size: ${px}px; }`;
+  // CSS変数も更新しておく（他のvar()参照やfallback用）
   document.documentElement.style.setProperty('--font-size-base', px + 'px');
   fontSizeInput.value = px;
 }
