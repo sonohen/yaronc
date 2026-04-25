@@ -102,11 +102,13 @@ function connectRelay(url) {
   ws.addEventListener('close', () => {
     if (connObj.closing) return;
     updateRelayStatus(url, 'error');
-    if (loadingOlder && olderEoseExpected > 0) {
-      olderEoseExpected--;
-      if (olderEoseReceived >= olderEoseExpected) flushOlderPosts();
-    }
-    if (currentUserHex && activeRelays.includes(url)) setTimeout(() => connectRelay(url), 10000);
+if (loadingOlder && olderEoseExpected > 0) {
+  olderEoseExpected--;
+  if (olderEoseReceived >= olderEoseExpected) flushOlderPosts();
+}
+// アイドル切断中は自動再接続しない
+if (currentUserHex && activeRelays.includes(url) && !isIdleDisconnected)
+  setTimeout(() => connectRelay(url), 10000);
   });
 }
 

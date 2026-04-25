@@ -815,8 +815,9 @@ idleTimeoutSelect.addEventListener('change', () => {
 });
 
 function disconnectAllRelays() {
+  isIdleDisconnected = true; // close イベントより先にフラグを立てる
   for (const [, conn] of connections) {
-    try { conn.ws.onclose = null; conn.ws.close(); } catch (_) {}
+    try { conn.ws.close(); } catch (_) {}
   }
   connections.clear();
   isIdleDisconnected = true;
