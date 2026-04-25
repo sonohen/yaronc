@@ -80,7 +80,9 @@ function connectRelay(url) {
   ws.addEventListener('error', () => updateRelayStatus(url, 'error'));
   ws.addEventListener('close', () => {
     updateRelayStatus(url, 'error');
-    if (currentUserHex && activeRelays.includes(url)) setTimeout(() => connectRelay(url), 10000);
+    // アイドル切断中は自動再接続しない
+    if (currentUserHex && activeRelays.includes(url) && !isIdleDisconnected)
+      setTimeout(() => connectRelay(url), 10000);
   });
 }
 
