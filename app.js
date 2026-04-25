@@ -910,6 +910,20 @@ fontSizeUpBtn.addEventListener('click', () => {
   localStorage.setItem('nostr_font_size', v);
 });
 
+// ---- GIF アニメーション設定 ----
+function applyGifSetting(enabled) {
+  window.nostrGifAnimation = enabled;
+  gifToggle.classList.toggle('active', enabled);
+  gifToggleLabel.textContent = enabled ? 'ON' : 'OFF';
+}
+
+gifToggle.addEventListener('click', () => {
+  const next = window.nostrGifAnimation === false; // 現在 OFF なら ON へ
+  applyGifSetting(next);
+  localStorage.setItem('nostr_gif_animation', next ? '1' : '0');
+  renderPosts(); // 即座に再描画して反映
+});
+
 // ---- Idle disconnect ----
 idleTimeoutSelect.value = String(idleMinutes);
 idleTimeoutSelect.addEventListener('change', () => {
@@ -955,6 +969,8 @@ function init() {
   applyTheme(localStorage.getItem('nostr_theme') === 'light');
   const savedFontSize = parseInt(localStorage.getItem('nostr_font_size'), 10);
   applyFontSize(!isNaN(savedFontSize) ? clampFontSize(savedFontSize) : FONT_SIZE_DEFAULT);
+  // GIF アニメーション設定（デフォルト: ON）
+  applyGifSetting(localStorage.getItem('nostr_gif_animation') !== '0');
   document.querySelectorAll('.kind-btn').forEach(b => b.classList.remove('active'));
   document.querySelectorAll(`.kind-btn[data-kind="${kindFilter}"]`).forEach(b => b.classList.add('active'));
   initSidebarDnd();
