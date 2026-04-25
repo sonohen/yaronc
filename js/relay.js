@@ -77,8 +77,14 @@ function connectRelay(url) {
     try { handleMessage(JSON.parse(e.data)); } catch (_) {}
   });
 
-  ws.addEventListener('error', () => updateRelayStatus(url, 'error'));
+  ws.addEventListener('error', () => {
+    // 既に別の接続に置き換えられた古い ws のイベントは無視する
+    if (connections.get(url)?.ws !== ws) return;
+    updateRelayStatus(url, 'error');
+  });
   ws.addEventListener('close', () => {
+    // 既に別の接続に置き換えられた古い ws のイベントは無視する
+    if (connections.get(url)?.ws !== ws) return;
     updateRelayStatus(url, 'error');
     // アイドル切断中は自動再接続しない
     if (currentUserHex && activeRelays.includes(url) && !isIdleDisconnected)
