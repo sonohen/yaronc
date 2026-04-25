@@ -196,6 +196,13 @@ function handleContactEvent(event) {
   startMainFeed();
 }
 
+function closeSub(subId) {
+  for (const [, conn] of connections) {
+    if (conn.ws && conn.ws.readyState === WebSocket.OPEN)
+      conn.ws.send(JSON.stringify(['CLOSE', subId]));
+  }
+}
+
 // ---- Main feed subscription ----
 function startMainFeed() {
   mainSubId = 'feed-' + Math.random().toString(36).slice(2, 8);
@@ -344,6 +351,15 @@ function handleMessage(msg) {
   if (type === 'EOSE' && subId === olderSubId) {
     olderEoseReceived++;
     if (olderEoseReceived >= olderEoseExpected) flushOlderPosts();
+  }
+
+  if (type === 'EOSE') {
+    if (subId.startsWith('replies-') ||
+        subId.startsWith('targets-') ||
+        subId.startsWith('profiles-') ||
+        subId === 'self-profile') {
+      closeSub(subId);
+    }
   }
 }
 
@@ -526,6 +542,7 @@ function fetchTargetEvent(eventId, relayHints = []) {
         }
         pendingTargetCards.delete(id);
       }
+      closeSub(subId);
     }, 15000);
     // nevent の relay hint に未接続のものがあれば一時接続して取得
     for (const rawRelayUrl of relayHints.slice(0, 2)) {
