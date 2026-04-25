@@ -64,17 +64,19 @@ function icEvictExpired() {
 }
 
 // L1: セッション内メモリ
-const icMemCache = new Map(); // url → ObjectURL
+const icMemCache = new Map(); // url → ObjectURL（またはフォールバック時は元の url）
 const icPending  = new Map(); // url → Promise<src>（重複 fetch 防止）
 
-// URL を指定して src 文字列（ObjectURL or 元 URL）を解決する Promise を返す
+// URL を指定して src 文字列（ObjectURL or 元 URL）を解決する Promise を返す。
+// ・同一 URL のフェッチは icPending により1回に集約される
+// ・fetch 失敗（CORS 拒否等）時は元 URL を L1 に記録し、以降の再フェッチを防ぐ
 function icLoad(url) {
   if (!url) return Promise.resolve(url);
 
   // L1 ヒット
   if (icMemCache.has(url)) return Promise.resolve(icMemCache.get(url));
 
-  // 同じ URL を既にフェッチ中なら同一 Promise を返す
+  // 同じ URL を既にフェッチ中なら同一 Promise を返す（重複リクエストなし）
   if (icPending.has(url)) return icPending.get(url);
 
   const p = icGet(url).then(entry => {
@@ -96,23 +98,42 @@ function icLoad(url) {
         icMemCache.set(url, objUrl);
         return objUrl;
       })
-      .catch(() => url); // CORS 拒否など → 元 URL にフォールバック
-  }).catch(() => url).finally(() => {
+      .catch(() => {
+        // CORS 拒否など: 元 URL を L1 に記録して無限リトライを防ぐ
+        icMemCache.set(url, url);
+        return url;
+      });
+  }).catch(() => {
+    icMemCache.set(url, url);
+    return url;
+  }).finally(() => {
     icPending.delete(url);
   });
 
-  icPending.set(url, p);
+  icPending.set(url, p); // 同期的に登録するので、後続の icLoad 呼び出しでヒットする
   return p;
 }
 
 // img 要素に URL をセットする。
-// 即座に元 URL を設定し、キャッシュ解決後に ObjectURL へ差し替える。
+// すでに icPending に登録済み（フェッチ中）の URL は img.src の重複セットをしない。
+// - キャッシュ済み or フェッチ中 → Promise を待って src を1回だけセット
+// - 初回リクエスト       → img.src = url で即表示、完了後に ObjectURL へ差し替え
 function icSetSrc(imgEl, url) {
   if (!url) return;
-  imgEl.src = url; // 表示を即開始（ネットワーク or ブラウザ HTTP キャッシュ）
+
+  // キャッシュ済み or フェッチ中: img.src = url をセットせず結果を待つ
+  if (icMemCache.has(url) || icPending.has(url)) {
+    icLoad(url).then(src => {
+      if (imgEl.isConnected) imgEl.src = src;
+    });
+    return;
+  }
+
+  // 初回リクエスト: 即表示しつつバックグラウンドでキャッシュを構築
+  // この分岐は各 URL につき1回のみ通る（以降は icPending/icMemCache でガード）
+  imgEl.src = url;
   icLoad(url).then(src => {
-    if (src === url) return;                       // フォールバックなら差し替え不要
-    if (imgEl.isConnected) imgEl.src = src;        // DOM から外れていれば無視
+    if (src !== url && imgEl.isConnected) imgEl.src = src;
   });
 }
 

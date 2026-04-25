@@ -25,22 +25,33 @@ function safeUrl(url) {
 function avatarEl(pubkey, picture) {
   const div = document.createElement('div');
   div.className = 'avatar';
+
+  // イニシャル + グラデーションを即時表示（画像ロード完了まで / 画像なし時のフォールバック）
+  const initials = pubkey.slice(0, 2).toUpperCase();
+  const hue = parseInt(pubkey.slice(0, 4), 16) % 360;
+  const gradient = `linear-gradient(135deg, hsl(${hue},70%,55%), hsl(${(hue+120)%360},70%,55%))`;
+  div.textContent = initials;
+  div.style.background = gradient;
+
   const safePic = safeUrl(picture);
   if (safePic) {
-    const img = document.createElement('img');
-    img.loading = 'lazy';
-    img.onerror = () => {
-      div.innerHTML = '';
-      div.textContent = pubkey.slice(0, 2).toUpperCase();
-      const hue = parseInt(pubkey.slice(0, 4), 16) % 360;
-      div.style.background = `linear-gradient(135deg, hsl(${hue},70%,55%), hsl(${(hue + 120) % 360},70%,55%))`;
-    };
-    icSetSrc(img, safePic); // キャッシュ経由でロード
-    div.appendChild(img);
-  } else {
-    div.textContent = pubkey.slice(0, 2).toUpperCase();
-    const hue = parseInt(pubkey.slice(0, 4), 16) % 360;
-    div.style.background = `linear-gradient(135deg, hsl(${hue},70%,55%), hsl(${(hue + 120) % 360},70%,55%))`;
+    // icLoad は URL ごとに1つの Promise に集約されるため、
+    // 同じ著者の投稿が何件あっても fetch は1回だけ発行される。
+    icLoad(safePic).then(src => {
+      if (!div.isConnected) return; // 仮想スクロールで DOM から外れていれば無視
+      const img = document.createElement('img');
+      img.src = src;
+      img.loading = 'lazy';
+      img.onerror = () => {
+        // 画像ロード失敗 → イニシャルに戻す
+        div.innerHTML = '';
+        div.textContent = initials;
+        div.style.background = gradient;
+      };
+      div.textContent = '';
+      div.style.background = '';
+      div.appendChild(img);
+    });
   }
   return div;
 }
