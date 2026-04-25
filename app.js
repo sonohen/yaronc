@@ -366,7 +366,6 @@ function renderProfilePosts() {
   const filtered = profileKindFilter === 'all' ? all : all.filter(e => String(e.kind) === profileKindFilter);
   const sorted = [...filtered].sort((a, b) => b.created_at - a.created_at);
 
-  // スピナー表示中（まだフェッチ中）なら 0 件でも上書きしない
   if (sorted.length === 0) {
     if (!profileModalPosts.querySelector('.profile-posts-loading')) {
       profileModalPosts.innerHTML = '';
@@ -374,6 +373,7 @@ function renderProfilePosts() {
     return;
   }
 
+  profileModalPosts.innerHTML = '';
   for (const ev of sorted) {
     const card = createProfileMiniCard(ev);
     card.dataset.id = ev.id;
