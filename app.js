@@ -321,7 +321,7 @@ function openProfileModal(pubkey) {
   renderProfilePosts();
 
   if (evMap.size === 0) {
-    profileModalPosts.innerHTML = '<div class="profile-posts-loading"><div class="spinner"></div></div>';
+    showProfileSpinner();
   }
 
   profileModal.classList.remove('hidden');
@@ -329,7 +329,24 @@ function openProfileModal(pubkey) {
   if (!alreadyOpen) fetchUserPosts(pubkey);
 }
 
+// スピナーを表示し、8秒後に自動消去する
+function showProfileSpinner() {
+  clearTimeout(profileLoadTimer);
+  profileModalPosts.innerHTML = '<div class="profile-posts-loading"><div class="spinner"></div></div>';
+  profileLoadTimer = setTimeout(() => {
+    const spinner = profileModalPosts.querySelector('.profile-posts-loading');
+    if (!spinner) return; // すでに投稿が表示されていれば何もしない
+    const evMap = profileEventCache.get(profileCurrentPubkey);
+    const hasEvents = evMap && evMap.size > 0;
+    if (!hasEvents) {
+      profileModalPosts.innerHTML =
+        '<div class="profile-empty">投稿が見つかりませんでした</div>';
+    }
+  }, 8000);
+}
+
 function fetchUserPosts(pubkey) {
+  clearTimeout(profileLoadTimer); // 前のタイマーをキャンセル
   if (profileSubId) {
     for (const [, conn] of connections) {
       if (conn.ws && conn.ws.readyState === WebSocket.OPEN)
@@ -349,8 +366,13 @@ function renderProfilePosts() {
   const filtered = profileKindFilter === 'all' ? all : all.filter(e => String(e.kind) === profileKindFilter);
   const sorted = [...filtered].sort((a, b) => b.created_at - a.created_at);
 
-  profileModalPosts.innerHTML = '';
-  if (sorted.length === 0) return;
+  // スピナー表示中（まだフェッチ中）なら 0 件でも上書きしない
+  if (sorted.length === 0) {
+    if (!profileModalPosts.querySelector('.profile-posts-loading')) {
+      profileModalPosts.innerHTML = '';
+    }
+    return;
+  }
 
   for (const ev of sorted) {
     const card = createProfileMiniCard(ev);
@@ -386,13 +408,20 @@ function handleProfileSubEvent(event) {
 
   fetchProfile(event.pubkey);
 
+  // 初回イベント受信でスピナーとタイマーを解除
   const loading = profileModalPosts.querySelector('.profile-posts-loading');
-  if (loading) loading.remove();
+  if (loading) {
+    clearTimeout(profileLoadTimer);
+    profileLoadTimer = null;
+    loading.remove();
+  }
 
   renderProfilePosts();
 }
 
 function closeProfileModal() {
+  clearTimeout(profileLoadTimer);
+  profileLoadTimer = null;
   profileModal.classList.add('hidden');
   if (profileSubId) {
     for (const [, conn] of connections) {
