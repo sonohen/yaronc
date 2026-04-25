@@ -65,7 +65,11 @@ function flushOlderPosts() {
   olderEoseReceived = 0;
   bottomLoadingEl.classList.add('hidden');
   if (olderPostsBuffer.length > 0) {
-    for (const e of olderPostsBuffer) posts.push(e);
+    // 既存 posts に同じ ID がある場合は追加しない（複数リレーからの重複を防ぐ）
+    const existingIds = new Set(posts.map(p => p.id));
+    for (const e of olderPostsBuffer) {
+      if (!existingIds.has(e.id)) posts.push(e);
+    }
     olderPostsBuffer = [];
     posts.sort((a, b) => b.created_at - a.created_at);
     renderPosts();
@@ -270,6 +274,7 @@ function handleMessage(msg) {
       try {
         const meta = JSON.parse(event.content);
         profileCache.set(event.pubkey, meta);
+        profileCacheMeta.set(event.pubkey, Date.now()); // LRU タイムスタンプを更新
         saveProfileCache();
         if (meta.nip05) verifyNip05(event.pubkey, meta.nip05);
         const cbs = mentionCallbacks.get(event.pubkey);
