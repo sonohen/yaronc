@@ -161,8 +161,9 @@ function openModal(event) {
 }
 
 function buildReplyThread(eventId) {
-  const replies = replyMap.get(eventId) || [];
-  if (replies.length === 0) return null;
+  const repliesMap = replyMap.get(eventId);
+  if (!repliesMap || repliesMap.size === 0) return null;
+  const replies = [...repliesMap.values()].sort((a, b) => a.created_at - b.created_at);
 
   const section = document.createElement('div');
   section.className = 'thread-section';
@@ -598,6 +599,8 @@ function doRefresh() {
   hideNewPostsBanner();
   posts = [];
   seenEvents.clear();
+  reactionMap.clear();
+  replyMap.clear();
   mainSubId = 'feed-' + Math.random().toString(36).slice(2, 8);
   loadingEl.classList.remove('hidden');
   loadingText.textContent = 'フォロー中のユーザーの投稿を取得中...';

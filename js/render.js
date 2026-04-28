@@ -59,6 +59,7 @@ function avatarEl(pubkey, picture) {
 function avatarWithBadge(pubkey, picture) {
   const wrap = document.createElement('div');
   wrap.className = 'avatar-wrap';
+  wrap.dataset.pubkey = pubkey; // updateNip05InPlace でバッジを差し込むために使用
   wrap.appendChild(avatarEl(pubkey, picture));
 
   const state = nip05Cache.get(pubkey);
@@ -70,6 +71,24 @@ function avatarWithBadge(pubkey, picture) {
     wrap.appendChild(dot);
   }
   return wrap;
+}
+
+/**
+ * NIP-05 検証完了時に該当 pubkey のバッジだけを DOM 内で差し替える。
+ * renderPosts() の全再描画を避けるためのインプレース更新。
+ */
+function updateNip05InPlace(pubkey) {
+  const state = nip05Cache.get(pubkey);
+  if (!state || state === 'pending' || state === 'failed') return;
+  const title = `NIP-05 認証済み: ${state.identifier}`;
+  for (const wrap of document.querySelectorAll(`.avatar-wrap[data-pubkey="${pubkey}"]`)) {
+    if (wrap.querySelector('.nip05-dot')) continue; // 既にバッジあり
+    const dot = document.createElement('span');
+    dot.className = 'nip05-dot';
+    dot.title = title;
+    dot.textContent = '✓';
+    wrap.appendChild(dot);
+  }
 }
 
 /**
@@ -303,7 +322,6 @@ function vsRestore(ph) {
 
 // ---- Render ----
 function renderPosts() {
-  buildReactionMap();
   let filtered = kindFilter === 'all' ? posts : posts.filter(p => String(p.kind) === kindFilter);
   if (searchQuery) filtered = filtered.filter(p => p.content.toLowerCase().includes(searchQuery.toLowerCase()));
   if (authorFilter) filtered = filtered.filter(p => p.pubkey === authorFilter);
@@ -1075,15 +1093,16 @@ function fillReplyQuote(wrap, parentEvent) {
   wrap.appendChild(quote);
 
   if (!eventCache.has(parentEvent.id)) {
-    eventCache.set(parentEvent.id, parentEvent);
+    cacheEvent(parentEvent.id, parentEvent);
     fetchProfile(parentEvent.pubkey);
   }
 }
 
 function renderCardReplyPreview(el, eventId) {
-  const replies = replyMap.get(eventId) || [];
+  const repliesMap = replyMap.get(eventId);
   el.innerHTML = '';
-  if (replies.length === 0) return;
+  if (!repliesMap || repliesMap.size === 0) return;
+  const replies = [...repliesMap.values()].sort((a, b) => a.created_at - b.created_at);
 
   const countBar = document.createElement('div');
   countBar.className = 'reply-count-bar';
