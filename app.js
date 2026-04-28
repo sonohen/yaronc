@@ -567,7 +567,7 @@ function fetchOlderPosts() {
       conn.ws.send(JSON.stringify(['REQ', olderSubId, {
         kinds: [1, 6, 7],
         authors: [...followedPubkeys],
-        until: oldestTs - 1,
+        until: oldestTs,
         limit,
       }]));
       olderEoseExpected++;

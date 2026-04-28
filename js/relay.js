@@ -89,12 +89,15 @@ function flushOlderPosts() {
   if (olderPostsBuffer.length > 0) {
     // posts と pendingPosts 両方を確認（pendingPosts にある投稿が二重追加されるのを防ぐ）
     const existingIds = new Set([...posts, ...pendingPosts].map(p => p.id));
+    let added = 0;
     for (const e of olderPostsBuffer) {
-      if (!existingIds.has(e.id)) { posts.push(e); existingIds.add(e.id); }
+      if (!existingIds.has(e.id)) { posts.push(e); existingIds.add(e.id); added++; }
     }
     olderPostsBuffer = [];
-    posts.sort((a, b) => b.created_at - a.created_at);
-    renderPosts();
+    if (added > 0) {
+      posts.sort((a, b) => b.created_at - a.created_at);
+      renderPosts();
+    }
   }
 }
 
