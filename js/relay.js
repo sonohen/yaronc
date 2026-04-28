@@ -1,5 +1,27 @@
 'use strict';
 
+// ---- Memory-capped helpers ----
+const MAX_SEEN_EVENTS = 20000;
+function addSeenEvent(id) {
+  seenEvents.add(id);
+  if (seenEvents.size > MAX_SEEN_EVENTS) {
+    let count = 0;
+    for (const old of seenEvents) {
+      seenEvents.delete(old);
+      if (++count >= 5000) break;
+    }
+  }
+}
+
+const MAX_EVENT_CACHE = 3000;
+function cacheEvent(id, event) {
+  if (!eventCache.has(id) && eventCache.size >= MAX_EVENT_CACHE) {
+    // Map iteration order is insertion order → delete the oldest entry
+    eventCache.delete(eventCache.keys().next().value);
+  }
+  eventCache.set(id, event);
+}
+
 // ---- Relay connection ----
 function renderRelayList() {
   relayListEl.innerHTML = '';
@@ -318,7 +340,7 @@ function handleMessage(msg) {
     // （メインフィードで既に受信済みのイベントでもpendingTargetCardsを解決する必要があるため）
     if (subId.startsWith('targets-') && event.kind === 1) {
       if (!eventCache.has(event.id)) {
-        eventCache.set(event.id, event);
+        cacheEvent(event.id, event);
         fetchProfile(event.pubkey);
       }
       const waiting = pendingTargetCards.get(event.id);
@@ -330,7 +352,7 @@ function handleMessage(msg) {
         pendingTargetCards.delete(event.id);
       }
       if (seenEvents.has(event.id)) return;
-      seenEvents.add(event.id);
+      addSeenEvent(event.id);
       return;
     }
 
@@ -339,11 +361,11 @@ function handleMessage(msg) {
     // 登録された投稿がスクロール時に再取得できなくなる（穴が開く）バグを防ぐ。
     if ((event.kind === 1 || event.kind === 6 || event.kind === 7) && subId === olderSubId) {
       if (!seenEvents.has(event.id)) {
-        seenEvents.add(event.id);
+        addSeenEvent(event.id);
         if (event.kind === 6 && event.content) {
           try {
             const orig = JSON.parse(event.content);
-            if (orig && orig.id) { eventCache.set(orig.id, orig); fetchProfile(orig.pubkey); }
+            if (orig && orig.id) { cacheEvent(orig.id, orig); fetchProfile(orig.pubkey); }
           } catch (_) {}
         }
         if (event.kind === 7) addToReactionMap(event);
@@ -354,7 +376,7 @@ function handleMessage(msg) {
     }
 
     if (seenEvents.has(event.id)) return;
-    seenEvents.add(event.id);
+    addSeenEvent(event.id);
 
     if (event.kind === 0) {
       try {
@@ -386,7 +408,7 @@ function handleMessage(msg) {
           try {
             const orig = JSON.parse(event.content);
             if (orig && orig.id) {
-              eventCache.set(orig.id, orig);
+              cacheEvent(orig.id, orig);
               fetchProfile(orig.pubkey);
             }
           } catch (_) {}
@@ -472,7 +494,7 @@ async function verifyNip05(pubkey, identifier) {
     nip05Cache.set(pubkey, 'failed');
   }
 
-  scheduleRenderPosts(); // NIP-05 検証は非同期で複数同時完了することがあるためデバウンス
+  updateNip05InPlace(pubkey); // 該当 pubkey のバッジのみ差し替え（全再描画は不要）
   updateHeaderProfile();
   if (!profileModal.classList.contains('hidden')) scheduleRenderProfilePosts();
 }
@@ -564,11 +586,10 @@ function getReplyParentId(event) {
 function addReply(replyEvent) {
   const parentId = getReplyParentId(replyEvent);
   if (!parentId) return;
-  if (!replyMap.has(parentId)) replyMap.set(parentId, []);
-  const arr = replyMap.get(parentId);
-  if (arr.find(e => e.id === replyEvent.id)) return;
-  arr.push(replyEvent);
-  arr.sort((a, b) => a.created_at - b.created_at);
+  if (!replyMap.has(parentId)) replyMap.set(parentId, new Map());
+  const map = replyMap.get(parentId);
+  if (map.has(replyEvent.id)) return; // O(1) dedup
+  map.set(replyEvent.id, replyEvent);
   fetchProfile(replyEvent.pubkey);
   updateCardRepliesInPlace(parentId);
 }
@@ -582,6 +603,7 @@ function updateCardRepliesInPlace(parentId) {
 
 // ---- Target event fetching ----
 const pendingTargetFetches = new Set();
+const pendingTargetRelayHints = new Map(); // eventId → string[]
 let targetFetchTimer = null;
 
 function resolveTargetCards(eventId, event) {
@@ -594,66 +616,86 @@ function resolveTargetCards(eventId, event) {
   pendingTargetCards.delete(eventId);
 }
 
+function flushTargetFetches() {
+  targetFetchTimer = null;
+  if (pendingTargetFetches.size === 0) return;
+
+  // 1バッチあたり最大50件
+  const ids = [...pendingTargetFetches].slice(0, 50);
+  // 取得済みIDだけを削除（残りは次バッチへ）
+  for (const id of ids) pendingTargetFetches.delete(id);
+
+  // このバッチに対応するリレーヒントを収集してから削除
+  const allRelayHints = new Set();
+  for (const id of ids) {
+    const hints = pendingTargetRelayHints.get(id);
+    if (hints) {
+      for (const h of hints) allRelayHints.add(h);
+      pendingTargetRelayHints.delete(id);
+    }
+  }
+
+  const subId = 'targets-' + Math.random().toString(36).slice(2, 8);
+  const req = ['REQ', subId, { ids, kinds: [1] }];
+
+  // 接続済みリレーに送信
+  for (const [, conn] of connections) {
+    if (conn.ws && conn.ws.readyState === WebSocket.OPEN) conn.ws.send(JSON.stringify(req));
+  }
+
+  // 15秒後も未解決の pendingTargetCards をタイムアウト処理
+  setTimeout(() => {
+    for (const id of ids) {
+      const waiting = pendingTargetCards.get(id);
+      if (!waiting) continue;
+      for (const el of waiting) {
+        el.innerHTML = '<div class="reply-quote not-found">投稿を取得できませんでした</div>';
+      }
+      pendingTargetCards.delete(id);
+    }
+    closeSub(subId);
+  }, 15000);
+
+  // nevent のリレーヒントに未接続のものがあれば一時接続して取得
+  for (const rawRelayUrl of [...allRelayHints].slice(0, 2)) {
+    const relayUrl = upgradeWsUrl(rawRelayUrl);
+    if (activeRelays.includes(relayUrl)) continue; // 既存リレーは送信済み
+    if (connections.has(relayUrl)) continue;       // 接続試行中または接続済み
+    connections.set(relayUrl, { ws: null, status: 'connecting', temporary: true });
+    const ws = new WebSocket(relayUrl);
+    connections.get(relayUrl).ws = ws;
+    ws.addEventListener('open', () => { ws.send(JSON.stringify(req)); });
+    ws.addEventListener('message', e => { try { handleMessage(JSON.parse(e.data)); } catch (_) {} });
+    const timer = setTimeout(() => ws.close(), 8000);
+    ws.addEventListener('close', () => { clearTimeout(timer); connections.delete(relayUrl); });
+    ws.addEventListener('error', () => { clearTimeout(timer); connections.delete(relayUrl); });
+  }
+
+  // まだ残りがあれば続けてスケジュール
+  if (pendingTargetFetches.size > 0) targetFetchTimer = setTimeout(flushTargetFetches, 50);
+}
+
 function fetchTargetEvent(eventId, relayHints = []) {
-  // eventCacheにある場合は即解決
+  // eventCache にある場合は即解決
   if (eventCache.has(eventId)) {
     resolveTargetCards(eventId, eventCache.get(eventId));
     return;
   }
-  // posts / pendingPosts / olderPostsBuffer にある場合も即解決（seenEventsには入っているがeventCacheにない）
+  // posts / pendingPosts / olderPostsBuffer にある場合も即解決
   const inMemory = posts.find(p => p.id === eventId)
     || pendingPosts.find(p => p.id === eventId)
     || olderPostsBuffer.find(p => p.id === eventId);
   if (inMemory) {
-    eventCache.set(eventId, inMemory);
+    cacheEvent(eventId, inMemory);
     resolveTargetCards(eventId, inMemory);
     return;
   }
   pendingTargetFetches.add(eventId);
+  // リレーヒントを ID ごとに蓄積（後で flushTargetFetches が使う）
+  if (relayHints.length > 0) {
+    if (!pendingTargetRelayHints.has(eventId)) pendingTargetRelayHints.set(eventId, []);
+    for (const h of relayHints) pendingTargetRelayHints.get(eventId).push(h);
+  }
   clearTimeout(targetFetchTimer);
-  targetFetchTimer = setTimeout(() => {
-    const ids = [...pendingTargetFetches].slice(0, 50);
-    pendingTargetFetches.clear();
-    const subId = 'targets-' + Math.random().toString(36).slice(2, 8);
-    const req = ['REQ', subId, { ids, kinds: [1] }];
-    // 接続済みリレーに送信
-    for (const [, conn] of connections) {
-      if (conn.ws && conn.ws.readyState === WebSocket.OPEN) {
-        conn.ws.send(JSON.stringify(req));
-      }
-    }
-
-    // 15秒後も未解決のpendingTargetCardsをタイムアウト処理
-    setTimeout(() => {
-      for (const id of ids) {
-        const waiting = pendingTargetCards.get(id);
-        if (!waiting) continue;
-        for (const el of waiting) {
-          el.innerHTML = '<div class="reply-quote not-found">投稿を取得できませんでした</div>';
-        }
-        pendingTargetCards.delete(id);
-      }
-      closeSub(subId);
-    }, 15000);
-    // nevent の relay hint に未接続のものがあれば一時接続して取得
-    for (const rawRelayUrl of relayHints.slice(0, 2)) {
-      const relayUrl = upgradeWsUrl(rawRelayUrl);
-      if (activeRelays.includes(relayUrl)) continue; // 既存リレーは送信済み
-      if (connections.has(relayUrl)) continue;       // 接続試行中または接続済み
-      // connections に登録して重複接続を防ぐ
-      connections.set(relayUrl, { ws: null, status: 'connecting', temporary: true });
-      const ws = new WebSocket(relayUrl);
-      connections.get(relayUrl).ws = ws;
-      ws.addEventListener('open', () => {
-        ws.send(JSON.stringify(req));
-      });
-      ws.addEventListener('message', e => {
-        try { handleMessage(JSON.parse(e.data)); } catch (_) {}
-      });
-      // 取得完了 or タイムアウトで閉じる（一時接続なので connections からも削除）
-      const timer = setTimeout(() => ws.close(), 8000);
-      ws.addEventListener('close', () => { clearTimeout(timer); connections.delete(relayUrl); });
-      ws.addEventListener('error', () => { clearTimeout(timer); connections.delete(relayUrl); });
-    }
-  }, 300);
+  targetFetchTimer = setTimeout(flushTargetFetches, 300);
 }
