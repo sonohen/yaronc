@@ -585,7 +585,9 @@ function buildImageGrid(urls, openFn) {
 function createRepostCard(event) {
   const profile = profileCache.get(event.pubkey) || {};
   const name = profile.display_name || profile.name || shortPubkey(event.pubkey);
-  const targetId = (event.tags.find(t => t[0] === 'e') || [])[1] || '';
+  const eTag = event.tags.find(t => t[0] === 'e') || [];
+  const targetId = eTag[1] || '';
+  const targetRelayHint = eTag[2] ? [eTag[2]] : [];
   const origEvent = eventCache.get(targetId);
 
   const card = document.createElement('div');
@@ -617,7 +619,7 @@ function createRepostCard(event) {
     if (!pendingTargetCards.has(targetId)) pendingTargetCards.set(targetId, new Set());
     preview._fill = (el, ev) => fillRepostPreview(el, ev);
     pendingTargetCards.get(targetId).add(preview);
-    fetchTargetEvent(targetId);
+    fetchTargetEvent(targetId, targetRelayHint);
   }
 
   const footer = document.createElement('div');
@@ -678,7 +680,9 @@ function reactionLabel(content) {
 function createReactionCard(event) {
   const profile = profileCache.get(event.pubkey) || {};
   const name = profile.display_name || profile.name || shortPubkey(event.pubkey);
-  const targetId = (event.tags.find(t => t[0] === 'e') || [])[1] || '';
+  const eTag = event.tags.find(t => t[0] === 'e') || [];
+  const targetId = eTag[1] || '';
+  const targetRelayHint = eTag[2] ? [eTag[2]] : [];
   const emoji = reactionLabel(event.content);
 
   const card = document.createElement('div');
@@ -747,7 +751,7 @@ function createReactionCard(event) {
       preview.innerHTML = '<span class="reaction-preview-loading">読み込み中...</span>';
       if (!pendingTargetCards.has(targetId)) pendingTargetCards.set(targetId, new Set());
       pendingTargetCards.get(targetId).add(preview);
-      fetchTargetEvent(targetId);
+      fetchTargetEvent(targetId, targetRelayHint);
     }
   }
 
@@ -869,7 +873,9 @@ function createPostCard(event) {
 
   card.appendChild(header);
 
-  const parentId = getReplyParentId(event);
+  const parentTag = getReplyParentTag(event);
+  const parentId = parentTag?.[1] || null;
+  const parentRelayHint = parentTag?.[2] ? [parentTag[2]] : [];
   if (parentId) {
     const quoteWrap = document.createElement('div');
     quoteWrap.className = 'reply-quote-wrap';
@@ -883,7 +889,7 @@ function createPostCard(event) {
       if (!pendingTargetCards.has(parentId)) pendingTargetCards.set(parentId, new Set());
       quoteWrap._fill = (el, ev) => fillReplyQuote(el, ev);
       pendingTargetCards.get(parentId).add(quoteWrap);
-      fetchTargetEvent(parentId);
+      fetchTargetEvent(parentId, parentRelayHint);
     }
     card.appendChild(quoteWrap);
   }

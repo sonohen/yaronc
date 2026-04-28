@@ -379,7 +379,9 @@ function handleMessage(msg) {
     if ((event.kind === 1 || event.kind === 6 || event.kind === 7) &&
         (subId === mainSubId || subId.startsWith('new-follows-'))) {
       if (event.kind === 6) {
-        const targetId = (event.tags.find(t => t[0] === 'e') || [])[1];
+        const eTag = event.tags.find(t => t[0] === 'e') || [];
+        const targetId = eTag[1];
+        const targetRelayHint = eTag[2] ? [eTag[2]] : [];
         if (event.content) {
           try {
             const orig = JSON.parse(event.content);
@@ -389,7 +391,7 @@ function handleMessage(msg) {
             }
           } catch (_) {}
         }
-        if (targetId && !eventCache.has(targetId)) fetchTargetEvent(targetId);
+        if (targetId && !eventCache.has(targetId)) fetchTargetEvent(targetId, targetRelayHint);
       }
       if (event.kind === 7) {
         addToReactionMap(event);
@@ -549,10 +551,14 @@ function scheduleReplyFetch(eventIds) {
   }, 600);
 }
 
-function getReplyParentId(event) {
+// reply/root/最後の 'e' タグを返す（リレーヒントも含む形で返す）
+function getReplyParentTag(event) {
   const eTags = event.tags.filter(t => t[0] === 'e');
-  const replyTag = eTags.find(t => t[3] === 'reply') || eTags.find(t => t[3] === 'root');
-  return (replyTag || eTags[eTags.length - 1])?.[1] || null;
+  return eTags.find(t => t[3] === 'reply') || eTags.find(t => t[3] === 'root') || eTags[eTags.length - 1] || null;
+}
+
+function getReplyParentId(event) {
+  return getReplyParentTag(event)?.[1] || null;
 }
 
 function addReply(replyEvent) {

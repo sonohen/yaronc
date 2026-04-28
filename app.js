@@ -431,12 +431,16 @@ function handleProfileSubEvent(event) {
   evMap.set(event.id, event);
 
   if (event.kind === 6) {
-    const targetId = (event.tags.find(t => t[0] === 'e') || [])[1];
-    if (targetId && !eventCache.has(targetId)) fetchTargetEvent(targetId);
+    const eTag = event.tags.find(t => t[0] === 'e') || [];
+    const targetId = eTag[1];
+    const targetRelayHint = eTag[2] ? [eTag[2]] : [];
+    if (targetId && !eventCache.has(targetId)) fetchTargetEvent(targetId, targetRelayHint);
   }
   if (event.kind === 7) {
-    const targetId = (event.tags.find(t => t[0] === 'e') || [])[1];
-    if (targetId && !eventCache.has(targetId)) fetchTargetEvent(targetId);
+    const eTag = event.tags.find(t => t[0] === 'e') || [];
+    const targetId = eTag[1];
+    const targetRelayHint = eTag[2] ? [eTag[2]] : [];
+    if (targetId && !eventCache.has(targetId)) fetchTargetEvent(targetId, targetRelayHint);
   }
 
   fetchProfile(event.pubkey);
