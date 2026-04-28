@@ -365,19 +365,30 @@ function renderPosts() {
   if (kind1Ids.length > 0) scheduleReplyFetch(kind1Ids);
 }
 
-// ---- Debounced render helpers ----
+// ---- Batched render helpers ----
 // イベント受信など短時間に大量呼び出しが起きる箇所はこちらを使う。
+// requestAnimationFrame を使い「同一フレーム内の複数呼び出しを1回に束ねる」スロットル方式。
+// トレーリングデバウンス（最後から Xms 待つ方式）と違い、最初の呼び出しから
+// ≤16ms（次の描画フレーム）以内に必ず発火するため、表示遅延が起きない。
 // ユーザー操作起点（検索・フィルター・スクロール等）は renderPosts() を直接呼ぶ。
-let _renderPostsTimer = null;
+let _renderPostsPending = false;
 function scheduleRenderPosts() {
-  clearTimeout(_renderPostsTimer);
-  _renderPostsTimer = setTimeout(renderPosts, 50);
+  if (_renderPostsPending) return;
+  _renderPostsPending = true;
+  requestAnimationFrame(() => {
+    _renderPostsPending = false;
+    renderPosts();
+  });
 }
 
-let _renderProfilePostsTimer = null;
+let _renderProfilePostsPending = false;
 function scheduleRenderProfilePosts() {
-  clearTimeout(_renderProfilePostsTimer);
-  _renderProfilePostsTimer = setTimeout(renderProfilePosts, 50);
+  if (_renderProfilePostsPending) return;
+  _renderProfilePostsPending = true;
+  requestAnimationFrame(() => {
+    _renderProfilePostsPending = false;
+    renderProfilePosts();
+  });
 }
 
 // ---- Text parsing ----

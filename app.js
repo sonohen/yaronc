@@ -41,6 +41,9 @@ logoutBtn.addEventListener('click', () => {
   olderEoseReceived = 0;
   seenEvents.clear();
   mainSubId = null;
+  contactListTs = 0; // 再ログイン時に handleContactEvent が startMainFeed を呼べるようリセット
+  reactionMap.clear();
+  replyMap.clear();
   hideNewPostsBanner();
   for (const [, conn] of connections) { try { conn.ws.close(); } catch (_) {} }
   connections.clear();
