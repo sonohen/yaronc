@@ -72,6 +72,69 @@ function avatarWithBadge(pubkey, picture) {
   return wrap;
 }
 
+/**
+ * プロフィールキャッシュに基づいてカード内の著者名・アバター画像を更新する。
+ * renderPosts() でカードを再利用するとき（初回ロード時はプロフィール未着のため
+ * shortPubkey のみ表示されている）に呼び出し、後から届いたプロフィールを反映する。
+ * profileCache にデータが存在しない場合は何もしない。
+ */
+function refreshCardAuthor(card, event) {
+  const profile = profileCache.get(event.pubkey);
+  if (!profile) return;
+
+  const name    = profile.display_name || profile.name || shortPubkey(event.pubkey);
+  const handle  = profile.name ? `@${profile.name.split('@')[0]}` : '';
+
+  // 著者名スパンを更新
+  const nameEl = card.querySelector('.author-name');
+  if (nameEl && nameEl.textContent !== name) nameEl.textContent = name;
+
+  // ハンドル（kind:1 投稿カードの .post-author にのみ存在）
+  const authorLine = card.querySelector('.post-author');
+  if (authorLine) {
+    let handleSpan = authorLine.querySelector('.handle');
+    if (handle) {
+      if (handleSpan) {
+        if (handleSpan.textContent !== ` ${handle}`) handleSpan.textContent = ` ${handle}`;
+      } else {
+        handleSpan = document.createElement('span');
+        handleSpan.className = 'handle';
+        handleSpan.textContent = ` ${handle}`;
+        authorLine.appendChild(handleSpan);
+      }
+    } else if (handleSpan) {
+      handleSpan.remove();
+    }
+  }
+
+  // アバター：<img> 要素がまだない（イニシャル表示中）かつ picture がある場合のみ非同期ロード
+  // リポストカードは .post-header を持たないため querySelector が null を返し、自動的にスキップされる
+  const avatarDiv = card.querySelector('.post-header .avatar');
+  if (avatarDiv && !avatarDiv.querySelector('img') && profile.picture) {
+    const safePic = safeUrl(profile.picture);
+    if (safePic) {
+      const initials = event.pubkey.slice(0, 2).toUpperCase();
+      const hue = parseInt(event.pubkey.slice(0, 4), 16) % 360;
+      const gradient = `linear-gradient(135deg, hsl(${hue},70%,55%), hsl(${(hue + 120) % 360},70%,55%))`;
+      icLoad(safePic).then(src => {
+        if (!avatarDiv.isConnected) return;
+        if (avatarDiv.querySelector('img')) return; // 他の経路で既に挿入済み
+        const img = document.createElement('img');
+        img.src = src;
+        img.loading = 'lazy';
+        img.onerror = () => {
+          avatarDiv.innerHTML = '';
+          avatarDiv.textContent = initials;
+          avatarDiv.style.background = gradient;
+        };
+        avatarDiv.textContent = '';
+        avatarDiv.style.background = '';
+        avatarDiv.appendChild(img);
+      });
+    }
+  }
+}
+
 // ---- Reactions ----
 function customEmojiUrl(event) {
   const m = /^:([^:]+):$/.exec(event.content);
@@ -283,6 +346,8 @@ function renderPosts() {
     } else if (!card.classList.contains('v-placeholder')) {
       const reactionsEl = card.querySelector('.post-reactions');
       if (reactionsEl) renderCardReactions(reactionsEl, event.id);
+      // プロフィールが後から届いたとき（初回ログイン時など）に著者名・アバターを更新する
+      refreshCardAuthor(card, event);
     }
 
     const expectedNext = prevEl ? prevEl.nextSibling : postListEl.firstChild;
