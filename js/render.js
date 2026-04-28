@@ -365,6 +365,21 @@ function renderPosts() {
   if (kind1Ids.length > 0) scheduleReplyFetch(kind1Ids);
 }
 
+// ---- Debounced render helpers ----
+// イベント受信など短時間に大量呼び出しが起きる箇所はこちらを使う。
+// ユーザー操作起点（検索・フィルター・スクロール等）は renderPosts() を直接呼ぶ。
+let _renderPostsTimer = null;
+function scheduleRenderPosts() {
+  clearTimeout(_renderPostsTimer);
+  _renderPostsTimer = setTimeout(renderPosts, 50);
+}
+
+let _renderProfilePostsTimer = null;
+function scheduleRenderProfilePosts() {
+  clearTimeout(_renderProfilePostsTimer);
+  _renderProfilePostsTimer = setTimeout(renderProfilePosts, 50);
+}
+
 // ---- Text parsing ----
 const IMAGE_URL_RE = /https?:\/\/\S+\.(?:jpg|jpeg|png|gif|webp|avif|svg)(?:\?\S*)?/gi;
 const TWEET_URL_RE = /https?:\/\/(?:twitter\.com|x\.com)\/\w+\/status\/(\d+)[^\s]*/gi;

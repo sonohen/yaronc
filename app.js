@@ -373,11 +373,41 @@ function renderProfilePosts() {
     return;
   }
 
-  profileModalPosts.innerHTML = '';
-  for (const ev of sorted) {
-    const card = createProfileMiniCard(ev);
-    card.dataset.id = ev.id;
-    profileModalPosts.appendChild(card);
+  // スピナー・空メッセージを除去（投稿が届いた）
+  profileModalPosts.querySelector('.profile-posts-loading')?.remove();
+  profileModalPosts.querySelector('.profile-empty')?.remove();
+
+  // 既存カードをマップ化（data-event-id は createPostCard 等が設定する）
+  const cardMap = new Map();
+  for (const el of profileModalPosts.querySelectorAll('[data-event-id]')) {
+    cardMap.set(el.dataset.eventId, el);
+  }
+  const newIdSet = new Set(sorted.map(e => e.id));
+
+  // フィルター変更などで不要になったカードを除去
+  for (const [id, el] of cardMap) {
+    if (!newIdSet.has(id)) el.remove();
+  }
+
+  // 差分更新（時系列降順を維持）
+  let prevEl = null;
+  for (const event of sorted) {
+    let card = cardMap.get(event.id);
+    if (!card) {
+      card = createProfileMiniCard(event);
+    } else {
+      // 既存カードのリアクションと著者情報を更新
+      const reactionsEl = card.querySelector('.post-reactions');
+      if (reactionsEl) renderCardReactions(reactionsEl, event.id);
+      refreshCardAuthor(card, event);
+    }
+
+    const expectedNext = prevEl ? prevEl.nextSibling : profileModalPosts.firstChild;
+    if (card !== expectedNext) {
+      if (prevEl) prevEl.after(card);
+      else profileModalPosts.prepend(card);
+    }
+    prevEl = card;
   }
 }
 
@@ -416,7 +446,7 @@ function handleProfileSubEvent(event) {
     loading.remove();
   }
 
-  renderProfilePosts();
+  scheduleRenderProfilePosts(); // 投稿は連続して届くためデバウンス
 }
 
 function closeProfileModal() {

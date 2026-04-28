@@ -365,7 +365,7 @@ function handleMessage(msg) {
         if (meta.nip05) verifyNip05(event.pubkey, meta.nip05);
         const cbs = mentionCallbacks.get(event.pubkey);
         if (cbs) { cbs.forEach(fn => fn(meta)); mentionCallbacks.delete(event.pubkey); }
-        renderPosts();
+        scheduleRenderPosts(); // プロフィールは連続して届くためデバウンス
         updateHeaderProfile();
       } catch (_) {}
       return;
@@ -408,7 +408,7 @@ function handleMessage(msg) {
         posts.sort((a, b) => b.created_at - a.created_at);
         const limit = parseInt(limitSelect.value, 10);
         if (posts.length > limit * 2) posts = posts.slice(0, limit * 2);
-        renderPosts();
+        scheduleRenderPosts(); // 初回ロード時に大量投稿が連続するためデバウンス
       }
     }
 
@@ -470,9 +470,9 @@ async function verifyNip05(pubkey, identifier) {
     nip05Cache.set(pubkey, 'failed');
   }
 
-  renderPosts();
+  scheduleRenderPosts(); // NIP-05 検証は非同期で複数同時完了することがあるためデバウンス
   updateHeaderProfile();
-  if (!profileModal.classList.contains('hidden')) renderProfilePosts();
+  if (!profileModal.classList.contains('hidden')) scheduleRenderProfilePosts();
 }
 
 function nip05Badge(pubkey) {
