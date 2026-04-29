@@ -89,12 +89,15 @@ function flushOlderPosts() {
   if (olderPostsBuffer.length > 0) {
     // posts と pendingPosts 両方を確認（pendingPosts にある投稿が二重追加されるのを防ぐ）
     const existingIds = new Set([...posts, ...pendingPosts].map(p => p.id));
+    let added = 0;
     for (const e of olderPostsBuffer) {
-      if (!existingIds.has(e.id)) { posts.push(e); existingIds.add(e.id); }
+      if (!existingIds.has(e.id)) { posts.push(e); existingIds.add(e.id); added++; }
     }
     olderPostsBuffer = [];
-    posts.sort((a, b) => b.created_at - a.created_at);
-    renderPosts();
+    if (added > 0) {
+      posts.sort((a, b) => b.created_at - a.created_at);
+      renderPosts();
+    }
   }
 }
 
@@ -430,8 +433,7 @@ function handleMessage(msg) {
       } else {
         posts.push(event);
         posts.sort((a, b) => b.created_at - a.created_at);
-        const limit = parseInt(limitSelect.value, 10);
-        if (posts.length > limit * 2) posts = posts.slice(0, limit * 2);
+        if (posts.length > 1000) posts = posts.slice(0, 1000);
         scheduleRenderPosts(); // 初回ロード時に大量投稿が連続するためデバウンス
       }
     }
