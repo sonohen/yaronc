@@ -532,8 +532,7 @@ function flushPendingPosts() {
   for (const e of pendingPosts) posts.push(e);
   pendingPosts = [];
   posts.sort((a, b) => b.created_at - a.created_at);
-  const limit = parseInt(limitSelect.value, 10);
-  if (posts.length > limit * 2) posts = posts.slice(0, limit * 2);
+  if (posts.length > 1000) posts = posts.slice(0, 1000);
   hideNewPostsBanner();
   renderPosts();
 }

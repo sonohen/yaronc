@@ -433,8 +433,7 @@ function handleMessage(msg) {
       } else {
         posts.push(event);
         posts.sort((a, b) => b.created_at - a.created_at);
-        const limit = parseInt(limitSelect.value, 10);
-        if (posts.length > limit * 2) posts = posts.slice(0, limit * 2);
+        if (posts.length > 1000) posts = posts.slice(0, 1000);
         scheduleRenderPosts(); // 初回ロード時に大量投稿が連続するためデバウンス
       }
     }
