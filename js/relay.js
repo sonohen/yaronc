@@ -362,7 +362,7 @@ function handleMessage(msg) {
     // Older posts fetched via until filter
     // seenEvents チェックより先に処理する。replies- や targets- サブで seenEvents に
     // 登録された投稿がスクロール時に再取得できなくなる（穴が開く）バグを防ぐ。
-    if ((event.kind === 1 || event.kind === 6 || event.kind === 7) && subId === olderSubId) {
+    if ((event.kind === 1 || event.kind === 6) && subId === olderSubId) {
       if (!seenEvents.has(event.id)) {
         addSeenEvent(event.id);
         if (event.kind === 6 && event.content) {
@@ -371,7 +371,6 @@ function handleMessage(msg) {
             if (orig && orig.id) { cacheEvent(orig.id, orig); fetchProfile(orig.pubkey); }
           } catch (_) {}
         }
-        if (event.kind === 7) addToReactionMap(event);
       }
       fetchProfile(event.pubkey);
       olderPostsBuffer.push(event);
