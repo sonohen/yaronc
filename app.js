@@ -562,7 +562,7 @@ function fetchOlderPosts() {
   const oldestTs = feedPosts.length > 0
     ? Math.min(...feedPosts.map(p => p.created_at))
     : Math.min(...posts.map(p => p.created_at));
-  const limit = parseInt(limitSelect.value, 10);
+  const limit = adaptiveLimit(parseInt(limitSelect.value, 10));
   bottomLoadingEl.classList.remove('hidden');
   for (const [, conn] of connections) {
     if (conn.ws?.readyState === WebSocket.OPEN) {
