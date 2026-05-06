@@ -47,6 +47,9 @@ logoutBtn.addEventListener('click', () => {
   hideNewPostsBanner();
   for (const [, conn] of connections) { try { conn.ws.close(); } catch (_) {} }
   connections.clear();
+  for (const [, conn] of outboxConnections) { try { conn.ws.close(); } catch (_) {} }
+  outboxConnections.clear();
+  nip65Cache.clear();
   postListEl.innerHTML = '';
   loadingEl.classList.remove('hidden');
   loadingText.textContent = '投稿を取得中...';

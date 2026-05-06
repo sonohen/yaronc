@@ -22,6 +22,110 @@ function cacheEvent(id, event) {
   eventCache.set(id, event);
 }
 
+// ---- NIP-65 Outbox model ----
+const NIP65_SUB = 'nip65-fetch';
+const MAX_OUTBOX_RELAYS = 6;
+var nip65EoseExpected = 0;
+var nip65EoseReceived = 0;
+var nip65Applied = false;
+
+function handleNip65Event(event) {
+  const existing = nip65Cache.get(event.pubkey);
+  if (existing && existing.ts >= event.created_at) return;
+  const write = event.tags
+    .filter(t => t[0] === 'r' && (!t[2] || t[2] === 'write'))
+    .map(t => upgradeWsUrl(t[1]))
+    .filter(u => u.startsWith('wss://') || u.startsWith('ws://'));
+  nip65Cache.set(event.pubkey, { write, ts: event.created_at });
+}
+
+function fetchNip65RelayLists() {
+  if (followedPubkeys.size === 0) return;
+  nip65EoseExpected = 0;
+  nip65EoseReceived = 0;
+  nip65Applied = false;
+  const req = ['REQ', NIP65_SUB, { kinds: [10002], authors: [...followedPubkeys] }];
+  for (const [, conn] of connections) {
+    if (conn.ws?.readyState === WebSocket.OPEN) {
+      conn.ws.send(JSON.stringify(req));
+      nip65EoseExpected++;
+    }
+  }
+}
+
+function applyOutboxModel() {
+  if (nip65Applied) return;
+  nip65Applied = true;
+
+  const limit = parseInt(limitSelect.value, 10);
+
+  // relay → Set<pubkey> マップを構築
+  const relayAuthorMap = new Map();
+  const coveredPubkeys = new Set();
+
+  for (const pubkey of followedPubkeys) {
+    const entry = nip65Cache.get(pubkey);
+    if (!entry || entry.write.length === 0) continue;
+    coveredPubkeys.add(pubkey);
+    for (const relay of entry.write) {
+      if (!relayAuthorMap.has(relay)) relayAuthorMap.set(relay, new Set());
+      relayAuthorMap.get(relay).add(pubkey);
+    }
+  }
+
+  // NIP-65 なし or write 空のユーザーは全アクティブリレーへフォールバック
+  const uncoveredPubkeys = [...followedPubkeys].filter(p => !coveredPubkeys.has(p));
+  if (uncoveredPubkeys.length > 0) {
+    for (const url of activeRelays) {
+      if (!relayAuthorMap.has(url)) relayAuthorMap.set(url, new Set());
+      for (const p of uncoveredPubkeys) relayAuthorMap.get(url).add(p);
+    }
+  }
+
+  // 既存接続リレーに対して relay 固有の pubkey セットで mainSubId を再 REQ
+  for (const [url, authorsSet] of relayAuthorMap) {
+    const conn = connections.get(url);
+    if (conn?.ws?.readyState === WebSocket.OPEN) {
+      conn.ws.send(JSON.stringify(['REQ', mainSubId, {
+        kinds: [1, 6],
+        authors: [...authorsSet],
+        limit,
+      }]));
+    }
+  }
+
+  // 未接続アウトボックスリレーの上位 MAX_OUTBOX_RELAYS 本を新規接続
+  const newRelays = [...relayAuthorMap.entries()]
+    .filter(([url]) => !activeRelays.includes(url))
+    .sort(([, a], [, b]) => b.size - a.size)
+    .slice(0, MAX_OUTBOX_RELAYS);
+
+  for (const [url, authorsSet] of newRelays) {
+    connectOutboxRelay(url, [...authorsSet], limit);
+  }
+}
+
+function connectOutboxRelay(url, pubkeys, limit) {
+  if (outboxConnections.has(url) || connections.has(url)) return;
+  const connObj = { ws: null, closing: false };
+  outboxConnections.set(url, connObj);
+  const ws = new WebSocket(url);
+  connObj.ws = ws;
+  ws.addEventListener('open', () => {
+    if (!mainSubId || pubkeys.length === 0) return;
+    ws.send(JSON.stringify(['REQ', mainSubId, {
+      kinds: [1, 6],
+      authors: pubkeys,
+      limit,
+    }]));
+  });
+  ws.addEventListener('message', e => {
+    try { handleMessage(JSON.parse(e.data)); } catch (_) {}
+  });
+  ws.addEventListener('close', () => { outboxConnections.delete(url); });
+  ws.addEventListener('error', () => { outboxConnections.delete(url); });
+}
+
 // ---- Relay connection ----
 function renderRelayList() {
   relayListEl.innerHTML = '';
@@ -236,6 +340,7 @@ function handleContactEvent(event) {
     closeSub(CONTACT_SUB);
     fetchProfileImmediate(currentUserHex);
     startMainFeed();
+    fetchNip65RelayLists();
     startContactLiveSub(); // 以降の変更を常時監視
     return;
   }
@@ -318,7 +423,7 @@ function sendMainSub(ws) {
   if (followedPubkeys.size === 0) return;
   const limit = parseInt(limitSelect.value, 10);
   ws.send(JSON.stringify(['REQ', mainSubId, {
-    kinds: [1, 6, 7],
+    kinds: [1, 6],
     authors: [...followedPubkeys],
     limit,
   }]));
@@ -378,6 +483,28 @@ function handleMessage(msg) {
       return;
     }
 
+    // replies- サブスクはseenEventsより先に処理する
+    // フォロー中ユーザーの返信がreplies-で先取りされてmainSubIdからブロックされないようにするため
+    if (event.kind === 1 && subId.startsWith('replies-')) {
+      const eTags = event.tags.filter(t => t[0] === 'e');
+      if (eTags.length > 0) addReply(event);
+      if (followedPubkeys.has(event.pubkey) && !seenEvents.has(event.id)) {
+        addSeenEvent(event.id);
+        fetchProfile(event.pubkey);
+        const isScrolledDown = window.scrollY > 200;
+        if (isScrolledDown) {
+          pendingPosts.push(event);
+          showNewPostsBanner();
+        } else {
+          posts.push(event);
+          posts.sort((a, b) => b.created_at - a.created_at);
+          if (posts.length > 1000) posts = posts.slice(0, 1000);
+          scheduleRenderPosts();
+        }
+      }
+      return;
+    }
+
     if (seenEvents.has(event.id)) return;
     addSeenEvent(event.id);
 
@@ -398,6 +525,11 @@ function handleMessage(msg) {
 
     if (event.kind === 3 && event.pubkey === currentUserHex) {
       handleContactEvent(event);
+      return;
+    }
+
+    if (event.kind === 10002) {
+      handleNip65Event(event);
       return;
     }
 
@@ -440,13 +572,7 @@ function handleMessage(msg) {
       }
     }
 
-    // Replies fetched via #e filter
-    if (event.kind === 1 && subId.startsWith('replies-')) {
-      const eTags = event.tags.filter(t => t[0] === 'e');
-      if (eTags.length > 0) addReply(event);
-    }
-
-    // targets- イベントは上部で処理済みのためここには到達しない
+    // replies- / targets- イベントは上部で処理済みのためここには到達しない
 
     if ([1, 6, 7].includes(event.kind) && profileSubId && subId === profileSubId) {
       handleProfileSubEvent(event);
@@ -463,6 +589,14 @@ function handleMessage(msg) {
   if (type === 'EOSE' && subId === olderSubId) {
     olderEoseReceived++;
     if (olderEoseReceived >= olderEoseExpected) flushOlderPosts();
+  }
+
+  if (type === 'EOSE' && subId === NIP65_SUB) {
+    nip65EoseReceived++;
+    if (nip65EoseReceived >= nip65EoseExpected && nip65EoseExpected > 0) {
+      closeSub(NIP65_SUB);
+      applyOutboxModel();
+    }
   }
 
   if (type === 'EOSE') {
