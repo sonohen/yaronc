@@ -36,14 +36,14 @@ function buildRelayAuthorMap({ nip65Cache, followedPubkeys, activeRelays }) {
   const relayAuthorMap = new Map(); // relay → Set<pubkey>
   const coveredPubkeys = new Set();
 
-  // 各ユーザーを primary write relay (先頭) のみに割り当て
   for (const pubkey of followedPubkeys) {
     const entry = nip65Cache.get(pubkey);
     if (!entry || entry.write.length === 0) continue;
     coveredPubkeys.add(pubkey);
-    const primaryRelay = entry.write[0];
-    if (!relayAuthorMap.has(primaryRelay)) relayAuthorMap.set(primaryRelay, new Set());
-    relayAuthorMap.get(primaryRelay).add(pubkey);
+    for (const relay of entry.write) {
+      if (!relayAuthorMap.has(relay)) relayAuthorMap.set(relay, new Set());
+      relayAuthorMap.get(relay).add(pubkey);
+    }
   }
 
   // NIP-65 なしユーザーは全アクティブリレーへフォールバック
@@ -191,8 +191,7 @@ test('http:// URL は write に含まれない（WebSocket でない）', () => 
 // buildRelayAuthorMap テスト
 // ========================
 
-test('NIP-65 あり: 各ユーザーは primary relay のみに登録される', () => {
-  // alice の primary = relay-a.com、bob の primary = relay-b.com
+test('NIP-65 あり: relay → author マップが正しく構築される', () => {
   const nip65Cache = new Map([
     ['alice', { write: ['wss://relay-a.com', 'wss://relay-b.com'], ts: 1000 }],
     ['bob',   { write: ['wss://relay-b.com'], ts: 1000 }],
@@ -202,15 +201,13 @@ test('NIP-65 あり: 各ユーザーは primary relay のみに登録される',
     followedPubkeys: new Set(['alice', 'bob']),
     activeRelays: ['wss://relay-a.com'],
   });
-  // alice は primary relay-a.com のみ（relay-b.com には入らない）
   assert.ok(map.has('wss://relay-a.com'));
   assert.ok(map.get('wss://relay-a.com').has('alice'));
-  assert.ok(!map.get('wss://relay-a.com')?.has('bob'));
+  assert.ok(!map.get('wss://relay-a.com').has('bob'));
 
-  // bob は primary relay-b.com のみ（relay-a.com には入らない）
   assert.ok(map.has('wss://relay-b.com'));
+  assert.ok(map.get('wss://relay-b.com').has('alice'));
   assert.ok(map.get('wss://relay-b.com').has('bob'));
-  assert.ok(!map.get('wss://relay-b.com').has('alice'));
 });
 
 test('NIP-65 なしユーザーは activeRelays にフォールバックする', () => {
@@ -276,59 +273,4 @@ test('フォロー外のユーザーはマップに含まれない', () => {
   const authors = map.get('wss://relay.com');
   assert.ok(authors?.has('alice'));
   assert.ok(!authors?.has('outsider'));
-});
-
-// ========================
-// per-author cap テスト
-// ========================
-
-function applyPerAuthorCap(posts, limit, followCount) {
-  const cap = Math.max(3, Math.ceil(limit / Math.max(1, followCount)));
-  const counts = new Map();
-  return posts.filter(p => {
-    const c = counts.get(p.pubkey) || 0;
-    if (c >= cap) return false;
-    counts.set(p.pubkey, c + 1);
-    return true;
-  });
-}
-
-test('per-author cap: 上限件数以上は除外される', () => {
-  // 100フォロー、limit=200 → cap=max(3,2)=3
-  const posts = Array.from({ length: 10 }, (_, i) => ({
-    id: `e${i}`, pubkey: 'alice', created_at: 1000 - i,
-  }));
-  const result = applyPerAuthorCap(posts, 200, 100);
-  assert.equal(result.length, 3);
-});
-
-test('per-author cap: 複数著者は各自上限まで表示される', () => {
-  const posts = [
-    ...Array.from({ length: 10 }, (_, i) => ({ id: `a${i}`, pubkey: 'alice', created_at: 1000 - i })),
-    ...Array.from({ length: 10 }, (_, i) => ({ id: `b${i}`, pubkey: 'bob',   created_at:  900 - i })),
-  ];
-  // 2フォロー、limit=200 → cap=max(3,100)=100 → 全件通過
-  const result = applyPerAuthorCap(posts, 200, 2);
-  assert.equal(result.length, 20);
-});
-
-test('per-author cap: フォロー数が多いときは厳しく制限される', () => {
-  // 100フォロー、limit=200 → cap=3
-  const posts = Array.from({ length: 20 }, (_, i) => ({ id: `e${i}`, pubkey: 'heavy_user', created_at: 1000 - i }));
-  const result = applyPerAuthorCap(posts, 200, 100);
-  assert.equal(result.length, 3, '100フォロー時は著者あたり3件まで');
-});
-
-test('per-author cap: 大人数フォローのとき最小値 3件が保証される', () => {
-  // 1000フォロー、limit=200 → cap=max(3,ceil(0.2))=3
-  const posts = Array.from({ length: 10 }, (_, i) => ({ id: `e${i}`, pubkey: 'user', created_at: 1000 - i }));
-  const result = applyPerAuthorCap(posts, 200, 1000);
-  assert.equal(result.length, 3, '1000フォロー時も最小値 3件は保証される');
-});
-
-test('per-author cap: フォロー数が少ないときは余裕がある', () => {
-  // 5フォロー、limit=200 → cap=max(3,40)=40
-  const posts = Array.from({ length: 30 }, (_, i) => ({ id: `e${i}`, pubkey: 'alice', created_at: 1000 - i }));
-  const result = applyPerAuthorCap(posts, 200, 5);
-  assert.equal(result.length, 30, '5フォローなら30件全部通る');
 });
