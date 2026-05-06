@@ -53,16 +53,15 @@ function fetchNip65RelayLists() {
   }
 }
 
+const MAX_WRITE_RELAYS_PER_USER = 3;
+
 function applyOutboxModel() {
   if (nip65Applied) return;
   nip65Applied = true;
 
-  const limit = parseInt(limitSelect.value, 10);
-  const totalFollows = Math.max(1, followedPubkeys.size);
+  const since = Math.floor(Date.now() / 1000) - 12 * 3600;
 
-  // relay → Set<pubkey> マップ（各ユーザーを primary write relay 1本だけに割り当て）
-  // primary relay に限定することで、同一著者が複数リレーで世代違いの投稿を
-  // seenEvents すり抜けて cascading 蓄積するのを防ぐ。
+  // relay → Set<pubkey> マップ（各ユーザーを write relay 最大 3 本に登録）
   const relayAuthorMap = new Map();
   const coveredPubkeys = new Set();
 
@@ -70,9 +69,10 @@ function applyOutboxModel() {
     const entry = nip65Cache.get(pubkey);
     if (!entry || entry.write.length === 0) continue;
     coveredPubkeys.add(pubkey);
-    const primaryRelay = entry.write[0]; // 先頭の write relay のみに登録
-    if (!relayAuthorMap.has(primaryRelay)) relayAuthorMap.set(primaryRelay, new Set());
-    relayAuthorMap.get(primaryRelay).add(pubkey);
+    for (const relay of entry.write.slice(0, MAX_WRITE_RELAYS_PER_USER)) {
+      if (!relayAuthorMap.has(relay)) relayAuthorMap.set(relay, new Set());
+      relayAuthorMap.get(relay).add(pubkey);
+    }
   }
 
   // NIP-65 なし or write 空のユーザーは全アクティブリレーへフォールバック
@@ -84,15 +84,15 @@ function applyOutboxModel() {
     }
   }
 
-  // 既存接続リレーに対して比例 limit で mainSubId を再 REQ
+  // 既存接続リレーに対して since ベースで mainSubId を再 REQ
   for (const [url, authorsSet] of relayAuthorMap) {
     const conn = connections.get(url);
     if (conn?.ws?.readyState === WebSocket.OPEN) {
-      const relayLimit = Math.max(10, Math.ceil(limit * authorsSet.size / totalFollows));
       conn.ws.send(JSON.stringify(['REQ', mainSubId, {
         kinds: [1, 6],
         authors: [...authorsSet],
-        limit: relayLimit,
+        since,
+        limit: 50,
       }]));
     }
   }
@@ -104,12 +104,11 @@ function applyOutboxModel() {
     .slice(0, MAX_OUTBOX_RELAYS);
 
   for (const [url, authorsSet] of newRelays) {
-    const relayLimit = Math.max(10, Math.ceil(limit * authorsSet.size / totalFollows));
-    connectOutboxRelay(url, [...authorsSet], relayLimit);
+    connectOutboxRelay(url, [...authorsSet], since);
   }
 }
 
-function connectOutboxRelay(url, pubkeys, limit) {
+function connectOutboxRelay(url, pubkeys, since) {
   if (outboxConnections.has(url) || connections.has(url)) return;
   const connObj = { ws: null, closing: false };
   outboxConnections.set(url, connObj);
@@ -120,11 +119,12 @@ function connectOutboxRelay(url, pubkeys, limit) {
     ws.send(JSON.stringify(['REQ', mainSubId, {
       kinds: [1, 6],
       authors: pubkeys,
-      limit,
+      since,
+      limit: 50,
     }]));
   });
   ws.addEventListener('message', e => {
-    try { handleMessage(JSON.parse(e.data)); } catch (_) {}
+    try { handleMessage(JSON.parse(e.data), ws); } catch (_) {}
   });
   ws.addEventListener('close', () => { outboxConnections.delete(url); });
   ws.addEventListener('error', () => { outboxConnections.delete(url); });
@@ -240,7 +240,7 @@ function connectRelay(url) {
   });
 
   ws.addEventListener('message', e => {
-    try { handleMessage(JSON.parse(e.data)); } catch (_) {}
+    try { handleMessage(JSON.parse(e.data), ws); } catch (_) {}
   });
 
   ws.addEventListener('error', () => {
@@ -425,16 +425,17 @@ function startMainFeed() {
 
 function sendMainSub(ws) {
   if (followedPubkeys.size === 0) return;
-  const limit = parseInt(limitSelect.value, 10);
+  const since = Math.floor(Date.now() / 1000) - 12 * 3600;
   ws.send(JSON.stringify(['REQ', mainSubId, {
     kinds: [1, 6],
     authors: [...followedPubkeys],
-    limit,
+    since,
+    limit: 50,
   }]));
 }
 
 // ---- Message handler ----
-function handleMessage(msg) {
+function handleMessage(msg, ws) {
   if (!Array.isArray(msg)) return;
   const [type, subId, event] = msg;
 
@@ -609,7 +610,7 @@ function handleMessage(msg) {
         subId.startsWith('profiles-') ||
         subId.startsWith('new-follows-') ||
         subId === 'self-profile') {
-      closeSub(subId);
+      if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(['CLOSE', subId]));
     }
   }
 }

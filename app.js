@@ -575,6 +575,17 @@ function fetchOlderPosts() {
       olderEoseExpected++;
     }
   }
+  for (const [, conn] of outboxConnections) {
+    if (conn.ws?.readyState === WebSocket.OPEN) {
+      conn.ws.send(JSON.stringify(['REQ', olderSubId, {
+        kinds: [1, 6],
+        authors: [...followedPubkeys],
+        until: oldestTs,
+        limit,
+      }]));
+      olderEoseExpected++;
+    }
+  }
   if (olderEoseExpected === 0) {
     loadingOlder = false;
     olderSubId = null;
