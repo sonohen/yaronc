@@ -290,7 +290,7 @@ function startContactLiveSub() {
 function fetchNewFollowsPosts(pubkeys) {
   const subId = 'new-follows-' + Math.random().toString(36).slice(2, 8);
   const limit = parseInt(limitSelect.value, 10);
-  const req = ['REQ', subId, { kinds: [1, 6, 7], authors: pubkeys, limit }];
+  const req = ['REQ', subId, { kinds: [1, 6], authors: pubkeys, limit }];
   for (const [, conn] of connections) {
     if (conn.ws?.readyState === WebSocket.OPEN)
       conn.ws.send(JSON.stringify(req));
