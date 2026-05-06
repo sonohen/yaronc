@@ -318,7 +318,7 @@ function sendMainSub(ws) {
   if (followedPubkeys.size === 0) return;
   const limit = parseInt(limitSelect.value, 10);
   ws.send(JSON.stringify(['REQ', mainSubId, {
-    kinds: [1, 6, 7],
+    kinds: [1, 6],
     authors: [...followedPubkeys],
     limit,
   }]));
