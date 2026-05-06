@@ -23,6 +23,8 @@ var connections = new Map();
 var reactionMap = new Map();
 var replyMap = new Map();
 var pendingTargetCards = new Map();
+var nip65Cache = new Map();       // pubkey → {write: string[], ts: number}
+var outboxConnections = new Map(); // url → {ws, closing}
 
 // Profile modal state
 var profileSubId = null;
