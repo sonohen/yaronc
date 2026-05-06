@@ -354,8 +354,8 @@ function handleMessage(msg) {
         }
         pendingTargetCards.delete(event.id);
       }
-      if (seenEvents.has(event.id)) return;
-      addSeenEvent(event.id);
+      // seenEvents には追加しない。フォロー中ユーザーの投稿が targets- で先取りされても
+      // mainSubId から届いたときにタイムラインへ表示されるようにするため。
       return;
     }
 
