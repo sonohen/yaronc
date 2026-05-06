@@ -22,17 +22,6 @@ function cacheEvent(id, event) {
   eventCache.set(id, event);
 }
 
-// ---- Per-author cap ----
-// 複数リレーが同一著者の異なる世代の投稿を cascading で積み上げるのを防ぐ。
-// 収集段階で上限を設けることで posts[] が特定著者に独占されない。
-function isUnderAuthorCap(pubkey) {
-  const totalLimit = parseInt(limitSelect.value, 10);
-  const cap = Math.max(3, Math.ceil(totalLimit / Math.max(1, followedPubkeys.size)));
-  let count = 0;
-  for (const p of posts) { if (p.pubkey === pubkey) { if (++count >= cap) return false; } }
-  return true;
-}
-
 // ---- NIP-65 Outbox model ----
 const NIP65_SUB = 'nip65-fetch';
 const MAX_OUTBOX_RELAYS = 6;
@@ -69,8 +58,11 @@ function applyOutboxModel() {
   nip65Applied = true;
 
   const limit = parseInt(limitSelect.value, 10);
+  const totalFollows = Math.max(1, followedPubkeys.size);
 
-  // relay → Set<pubkey> マップを構築
+  // relay → Set<pubkey> マップ（各ユーザーを primary write relay 1本だけに割り当て）
+  // primary relay に限定することで、同一著者が複数リレーで世代違いの投稿を
+  // seenEvents すり抜けて cascading 蓄積するのを防ぐ。
   const relayAuthorMap = new Map();
   const coveredPubkeys = new Set();
 
@@ -78,10 +70,9 @@ function applyOutboxModel() {
     const entry = nip65Cache.get(pubkey);
     if (!entry || entry.write.length === 0) continue;
     coveredPubkeys.add(pubkey);
-    for (const relay of entry.write) {
-      if (!relayAuthorMap.has(relay)) relayAuthorMap.set(relay, new Set());
-      relayAuthorMap.get(relay).add(pubkey);
-    }
+    const primaryRelay = entry.write[0]; // 先頭の write relay のみに登録
+    if (!relayAuthorMap.has(primaryRelay)) relayAuthorMap.set(primaryRelay, new Set());
+    relayAuthorMap.get(primaryRelay).add(pubkey);
   }
 
   // NIP-65 なし or write 空のユーザーは全アクティブリレーへフォールバック
@@ -93,14 +84,15 @@ function applyOutboxModel() {
     }
   }
 
-  // 既存接続リレーに対して relay 固有の pubkey セットで mainSubId を再 REQ
+  // 既存接続リレーに対して比例 limit で mainSubId を再 REQ
   for (const [url, authorsSet] of relayAuthorMap) {
     const conn = connections.get(url);
     if (conn?.ws?.readyState === WebSocket.OPEN) {
+      const relayLimit = Math.max(10, Math.ceil(limit * authorsSet.size / totalFollows));
       conn.ws.send(JSON.stringify(['REQ', mainSubId, {
         kinds: [1, 6],
         authors: [...authorsSet],
-        limit,
+        limit: relayLimit,
       }]));
     }
   }
@@ -112,7 +104,8 @@ function applyOutboxModel() {
     .slice(0, MAX_OUTBOX_RELAYS);
 
   for (const [url, authorsSet] of newRelays) {
-    connectOutboxRelay(url, [...authorsSet], limit);
+    const relayLimit = Math.max(10, Math.ceil(limit * authorsSet.size / totalFollows));
+    connectOutboxRelay(url, [...authorsSet], relayLimit);
   }
 }
 
@@ -502,17 +495,15 @@ function handleMessage(msg) {
       if (followedPubkeys.has(event.pubkey) && !seenEvents.has(event.id)) {
         addSeenEvent(event.id);
         fetchProfile(event.pubkey);
-        if (isUnderAuthorCap(event.pubkey)) {
-          const isScrolledDown = window.scrollY > 200;
-          if (isScrolledDown) {
-            pendingPosts.push(event);
-            showNewPostsBanner();
-          } else {
-            posts.push(event);
-            posts.sort((a, b) => b.created_at - a.created_at);
-            if (posts.length > 1000) posts = posts.slice(0, 1000);
-            scheduleRenderPosts();
-          }
+        const isScrolledDown = window.scrollY > 200;
+        if (isScrolledDown) {
+          pendingPosts.push(event);
+          showNewPostsBanner();
+        } else {
+          posts.push(event);
+          posts.sort((a, b) => b.created_at - a.created_at);
+          if (posts.length > 1000) posts = posts.slice(0, 1000);
+          scheduleRenderPosts();
         }
       }
       return;
@@ -573,17 +564,15 @@ function handleMessage(msg) {
       fetchProfile(event.pubkey);
       loadingEl.classList.add('hidden');
 
-      if (isUnderAuthorCap(event.pubkey)) {
-        const isScrolledDown = window.scrollY > 200;
-        if (isScrolledDown) {
-          pendingPosts.push(event);
-          showNewPostsBanner();
-        } else {
-          posts.push(event);
-          posts.sort((a, b) => b.created_at - a.created_at);
-          if (posts.length > 1000) posts = posts.slice(0, 1000);
-          scheduleRenderPosts(); // 初回ロード時に大量投稿が連続するためデバウンス
-        }
+      const isScrolledDown = window.scrollY > 200;
+      if (isScrolledDown) {
+        pendingPosts.push(event);
+        showNewPostsBanner();
+      } else {
+        posts.push(event);
+        posts.sort((a, b) => b.created_at - a.created_at);
+        if (posts.length > 1000) posts = posts.slice(0, 1000);
+        scheduleRenderPosts(); // 初回ロード時に大量投稿が連続するためデバウンス
       }
     }
 

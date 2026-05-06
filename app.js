@@ -532,9 +532,7 @@ function hideNewPostsBanner() {
 
 function flushPendingPosts() {
   if (pendingPosts.length === 0) return;
-  for (const e of pendingPosts) {
-    if (isUnderAuthorCap(e.pubkey)) posts.push(e);
-  }
+  for (const e of pendingPosts) posts.push(e);
   pendingPosts = [];
   posts.sort((a, b) => b.created_at - a.created_at);
   if (posts.length > 1000) posts = posts.slice(0, 1000);

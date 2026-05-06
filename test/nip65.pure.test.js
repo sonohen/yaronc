@@ -36,14 +36,14 @@ function buildRelayAuthorMap({ nip65Cache, followedPubkeys, activeRelays }) {
   const relayAuthorMap = new Map(); // relay → Set<pubkey>
   const coveredPubkeys = new Set();
 
+  // 各ユーザーを primary write relay (先頭) のみに割り当て
   for (const pubkey of followedPubkeys) {
     const entry = nip65Cache.get(pubkey);
     if (!entry || entry.write.length === 0) continue;
     coveredPubkeys.add(pubkey);
-    for (const relay of entry.write) {
-      if (!relayAuthorMap.has(relay)) relayAuthorMap.set(relay, new Set());
-      relayAuthorMap.get(relay).add(pubkey);
-    }
+    const primaryRelay = entry.write[0];
+    if (!relayAuthorMap.has(primaryRelay)) relayAuthorMap.set(primaryRelay, new Set());
+    relayAuthorMap.get(primaryRelay).add(pubkey);
   }
 
   // NIP-65 なしユーザーは全アクティブリレーへフォールバック
@@ -191,7 +191,8 @@ test('http:// URL は write に含まれない（WebSocket でない）', () => 
 // buildRelayAuthorMap テスト
 // ========================
 
-test('NIP-65 あり: relay → author マップが正しく構築される', () => {
+test('NIP-65 あり: 各ユーザーは primary relay のみに登録される', () => {
+  // alice の primary = relay-a.com、bob の primary = relay-b.com
   const nip65Cache = new Map([
     ['alice', { write: ['wss://relay-a.com', 'wss://relay-b.com'], ts: 1000 }],
     ['bob',   { write: ['wss://relay-b.com'], ts: 1000 }],
@@ -201,13 +202,15 @@ test('NIP-65 あり: relay → author マップが正しく構築される', () 
     followedPubkeys: new Set(['alice', 'bob']),
     activeRelays: ['wss://relay-a.com'],
   });
+  // alice は primary relay-a.com のみ（relay-b.com には入らない）
   assert.ok(map.has('wss://relay-a.com'));
   assert.ok(map.get('wss://relay-a.com').has('alice'));
-  assert.ok(!map.get('wss://relay-a.com').has('bob'));
+  assert.ok(!map.get('wss://relay-a.com')?.has('bob'));
 
+  // bob は primary relay-b.com のみ（relay-a.com には入らない）
   assert.ok(map.has('wss://relay-b.com'));
-  assert.ok(map.get('wss://relay-b.com').has('alice'));
   assert.ok(map.get('wss://relay-b.com').has('bob'));
+  assert.ok(!map.get('wss://relay-b.com').has('alice'));
 });
 
 test('NIP-65 なしユーザーは activeRelays にフォールバックする', () => {
