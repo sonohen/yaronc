@@ -22,6 +22,17 @@ function cacheEvent(id, event) {
   eventCache.set(id, event);
 }
 
+// ---- Per-author cap ----
+// 複数リレーが同一著者の異なる世代の投稿を cascading で積み上げるのを防ぐ。
+// 収集段階で上限を設けることで posts[] が特定著者に独占されない。
+function isUnderAuthorCap(pubkey) {
+  const totalLimit = parseInt(limitSelect.value, 10);
+  const cap = Math.max(3, Math.ceil(totalLimit / Math.max(1, followedPubkeys.size)));
+  let count = 0;
+  for (const p of posts) { if (p.pubkey === pubkey) { if (++count >= cap) return false; } }
+  return true;
+}
+
 // ---- NIP-65 Outbox model ----
 const NIP65_SUB = 'nip65-fetch';
 const MAX_OUTBOX_RELAYS = 6;
@@ -491,15 +502,17 @@ function handleMessage(msg) {
       if (followedPubkeys.has(event.pubkey) && !seenEvents.has(event.id)) {
         addSeenEvent(event.id);
         fetchProfile(event.pubkey);
-        const isScrolledDown = window.scrollY > 200;
-        if (isScrolledDown) {
-          pendingPosts.push(event);
-          showNewPostsBanner();
-        } else {
-          posts.push(event);
-          posts.sort((a, b) => b.created_at - a.created_at);
-          if (posts.length > 1000) posts = posts.slice(0, 1000);
-          scheduleRenderPosts();
+        if (isUnderAuthorCap(event.pubkey)) {
+          const isScrolledDown = window.scrollY > 200;
+          if (isScrolledDown) {
+            pendingPosts.push(event);
+            showNewPostsBanner();
+          } else {
+            posts.push(event);
+            posts.sort((a, b) => b.created_at - a.created_at);
+            if (posts.length > 1000) posts = posts.slice(0, 1000);
+            scheduleRenderPosts();
+          }
         }
       }
       return;
@@ -560,15 +573,17 @@ function handleMessage(msg) {
       fetchProfile(event.pubkey);
       loadingEl.classList.add('hidden');
 
-      const isScrolledDown = window.scrollY > 200;
-      if (isScrolledDown) {
-        pendingPosts.push(event);
-        showNewPostsBanner();
-      } else {
-        posts.push(event);
-        posts.sort((a, b) => b.created_at - a.created_at);
-        if (posts.length > 1000) posts = posts.slice(0, 1000);
-        scheduleRenderPosts(); // 初回ロード時に大量投稿が連続するためデバウンス
+      if (isUnderAuthorCap(event.pubkey)) {
+        const isScrolledDown = window.scrollY > 200;
+        if (isScrolledDown) {
+          pendingPosts.push(event);
+          showNewPostsBanner();
+        } else {
+          posts.push(event);
+          posts.sort((a, b) => b.created_at - a.created_at);
+          if (posts.length > 1000) posts = posts.slice(0, 1000);
+          scheduleRenderPosts(); // 初回ロード時に大量投稿が連続するためデバウンス
+        }
       }
     }
 

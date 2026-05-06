@@ -274,3 +274,58 @@ test('フォロー外のユーザーはマップに含まれない', () => {
   assert.ok(authors?.has('alice'));
   assert.ok(!authors?.has('outsider'));
 });
+
+// ========================
+// per-author cap テスト
+// ========================
+
+function applyPerAuthorCap(posts, limit, followCount) {
+  const cap = Math.max(3, Math.ceil(limit / Math.max(1, followCount)));
+  const counts = new Map();
+  return posts.filter(p => {
+    const c = counts.get(p.pubkey) || 0;
+    if (c >= cap) return false;
+    counts.set(p.pubkey, c + 1);
+    return true;
+  });
+}
+
+test('per-author cap: 上限件数以上は除外される', () => {
+  // 100フォロー、limit=200 → cap=max(3,2)=3
+  const posts = Array.from({ length: 10 }, (_, i) => ({
+    id: `e${i}`, pubkey: 'alice', created_at: 1000 - i,
+  }));
+  const result = applyPerAuthorCap(posts, 200, 100);
+  assert.equal(result.length, 3);
+});
+
+test('per-author cap: 複数著者は各自上限まで表示される', () => {
+  const posts = [
+    ...Array.from({ length: 10 }, (_, i) => ({ id: `a${i}`, pubkey: 'alice', created_at: 1000 - i })),
+    ...Array.from({ length: 10 }, (_, i) => ({ id: `b${i}`, pubkey: 'bob',   created_at:  900 - i })),
+  ];
+  // 2フォロー、limit=200 → cap=max(3,100)=100 → 全件通過
+  const result = applyPerAuthorCap(posts, 200, 2);
+  assert.equal(result.length, 20);
+});
+
+test('per-author cap: フォロー数が多いときは厳しく制限される', () => {
+  // 100フォロー、limit=200 → cap=3
+  const posts = Array.from({ length: 20 }, (_, i) => ({ id: `e${i}`, pubkey: 'heavy_user', created_at: 1000 - i }));
+  const result = applyPerAuthorCap(posts, 200, 100);
+  assert.equal(result.length, 3, '100フォロー時は著者あたり3件まで');
+});
+
+test('per-author cap: 大人数フォローのとき最小値 3件が保証される', () => {
+  // 1000フォロー、limit=200 → cap=max(3,ceil(0.2))=3
+  const posts = Array.from({ length: 10 }, (_, i) => ({ id: `e${i}`, pubkey: 'user', created_at: 1000 - i }));
+  const result = applyPerAuthorCap(posts, 200, 1000);
+  assert.equal(result.length, 3, '1000フォロー時も最小値 3件は保証される');
+});
+
+test('per-author cap: フォロー数が少ないときは余裕がある', () => {
+  // 5フォロー、limit=200 → cap=max(3,40)=40
+  const posts = Array.from({ length: 30 }, (_, i) => ({ id: `e${i}`, pubkey: 'alice', created_at: 1000 - i }));
+  const result = applyPerAuthorCap(posts, 200, 5);
+  assert.equal(result.length, 30, '5フォローなら30件全部通る');
+});
