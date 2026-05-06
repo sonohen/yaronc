@@ -318,7 +318,7 @@ function sendMainSub(ws) {
   if (followedPubkeys.size === 0) return;
   const limit = parseInt(limitSelect.value, 10);
   ws.send(JSON.stringify(['REQ', mainSubId, {
-    kinds: [1, 6],
+    kinds: [1, 6, 7],
     authors: [...followedPubkeys],
     limit,
   }]));
@@ -371,7 +371,7 @@ function handleMessage(msg) {
             if (orig && orig.id) { cacheEvent(orig.id, orig); fetchProfile(orig.pubkey); }
           } catch (_) {}
         }
-        if (event.kind === 7) addToReactionMap(event);
+        if (event.kind === 7) { addToReactionMap(event); return; }
       }
       fetchProfile(event.pubkey);
       olderPostsBuffer.push(event);
@@ -422,12 +422,14 @@ function handleMessage(msg) {
         addToReactionMap(event);
         const targetId = (event.tags.find(t => t[0] === 'e') || [])[1];
         if (targetId) updateCardReactionsInPlace(targetId);
+        fetchProfile(event.pubkey);
+        return;
       }
       fetchProfile(event.pubkey);
       loadingEl.classList.add('hidden');
 
       const isScrolledDown = window.scrollY > 200;
-      if (isScrolledDown && event.kind !== 7) {
+      if (isScrolledDown) {
         pendingPosts.push(event);
         showNewPostsBanner();
       } else {
