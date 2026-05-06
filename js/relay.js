@@ -316,16 +316,12 @@ function startMainFeed() {
 
 function sendMainSub(ws) {
   if (followedPubkeys.size === 0) return;
-  const totalLimit = parseInt(limitSelect.value, 10);
-  // 1ユーザーあたりの取得件数 = totalLimit ÷ フォロー人数（最低5件）
-  const perUserLimit = Math.max(5, Math.ceil(totalLimit / followedPubkeys.size));
-  for (const pubkey of followedPubkeys) {
-    ws.send(JSON.stringify(['REQ', mainSubId + ':' + pubkey, {
-      kinds: [1, 6],
-      authors: [pubkey],
-      limit: perUserLimit,
-    }]));
-  }
+  const limit = parseInt(limitSelect.value, 10);
+  ws.send(JSON.stringify(['REQ', mainSubId, {
+    kinds: [1, 6],
+    authors: [...followedPubkeys],
+    limit,
+  }]));
 }
 
 // ---- Message handler ----
@@ -428,7 +424,7 @@ function handleMessage(msg) {
     }
 
     if ((event.kind === 1 || event.kind === 6 || event.kind === 7) &&
-        (subId === mainSubId || (mainSubId && subId.startsWith(mainSubId + ':')) || subId.startsWith('new-follows-'))) {
+        (subId === mainSubId || subId.startsWith('new-follows-'))) {
       if (event.kind === 6) {
         const eTag = event.tags.find(t => t[0] === 'e') || [];
         const targetId = eTag[1];

@@ -72,7 +72,7 @@ function makeHandlerModule(scrollY = 0) {
     addSeenEvent(event.id);
 
     if ((event.kind === 1 || event.kind === 6 || event.kind === 7) &&
-        (subId === mainSubId || (mainSubId && subId.startsWith(mainSubId + ':')) || subId.startsWith('new-follows-'))) {
+        (subId === mainSubId || subId.startsWith('new-follows-'))) {
       if (event.kind === 7) {
         addToReactionMap(event);
         return;
@@ -288,24 +288,4 @@ test('new-follows- サブスクは posts に追加される', () => {
   const ev = { id: 'ev_nf', kind: 1, pubkey: 'pub1', created_at: 1000, tags: [], content: 'hello' };
   handleMainSubEvent(ev, 'main', 'new-follows-abc123');
   assert.equal(posts.length, 1);
-});
-
-// ========================
-// per-user subId テスト（新方式）
-// ========================
-
-test('per-user subId (mainSubId:pubkey) は posts に追加される', () => {
-  const m = makeHandlerModule(0);
-  const ev = { id: 'ev_pu', kind: 1, pubkey: 'pub1', created_at: 1000, tags: [], content: 'hello' };
-  // mainSubId='main', subId='main:pubkey1' （per-user方式）
-  m.handleMainSubEvent(ev, 'main', 'main:pubkey1');
-  assert.equal(m.posts.length, 1);
-});
-
-test('別セッションの per-user subId は無視される', () => {
-  const m = makeHandlerModule(0);
-  const ev = { id: 'ev_old', kind: 1, pubkey: 'pub1', created_at: 1000, tags: [], content: 'hello' };
-  // mainSubId='new-session', subId='old-session:pubkey1' （古いセッション）
-  m.handleMainSubEvent(ev, 'new-session', 'old-session:pubkey1');
-  assert.equal(m.posts.length, 0);
 });
