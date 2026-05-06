@@ -60,6 +60,7 @@ function applyOutboxModel() {
   nip65Applied = true;
 
   const since = Math.floor(Date.now() / 1000) - 12 * 3600;
+  const limit = adaptiveLimit(parseInt(limitSelect.value, 10));
 
   // relay → Set<pubkey> マップ（各ユーザーを write relay 最大 3 本に登録）
   const relayAuthorMap = new Map();
@@ -92,7 +93,7 @@ function applyOutboxModel() {
         kinds: [1, 6],
         authors: [...authorsSet],
         since,
-        limit: 50,
+        limit,
       }]));
     }
   }
@@ -104,11 +105,11 @@ function applyOutboxModel() {
     .slice(0, MAX_OUTBOX_RELAYS);
 
   for (const [url, authorsSet] of newRelays) {
-    connectOutboxRelay(url, [...authorsSet], since);
+    connectOutboxRelay(url, [...authorsSet], since, limit);
   }
 }
 
-function connectOutboxRelay(url, pubkeys, since) {
+function connectOutboxRelay(url, pubkeys, since, limit) {
   if (outboxConnections.has(url) || connections.has(url)) return;
   const connObj = { ws: null, closing: false };
   outboxConnections.set(url, connObj);
@@ -120,7 +121,7 @@ function connectOutboxRelay(url, pubkeys, since) {
       kinds: [1, 6],
       authors: pubkeys,
       since,
-      limit: 50,
+      limit,
     }]));
   });
   ws.addEventListener('message', e => {
@@ -413,6 +414,15 @@ function closeSub(subId) {
   }
 }
 
+// limitSelect.value をリレー数で割り、1リレーあたりの limit を返す。
+// 合計取得件数がユーザー指定の件数に近くなるよう調整する。
+function adaptiveLimit(targetTotal) {
+  const open = c => c.ws?.readyState === WebSocket.OPEN;
+  const count = [...connections.values()].filter(open).length
+              + [...outboxConnections.values()].filter(open).length;
+  return Math.max(5, Math.ceil(targetTotal / Math.max(1, count)));
+}
+
 // ---- Main feed subscription ----
 function startMainFeed() {
   mainSubId = 'feed-' + Math.random().toString(36).slice(2, 8);
@@ -426,11 +436,12 @@ function startMainFeed() {
 function sendMainSub(ws) {
   if (followedPubkeys.size === 0) return;
   const since = Math.floor(Date.now() / 1000) - 12 * 3600;
+  const limit = adaptiveLimit(parseInt(limitSelect.value, 10));
   ws.send(JSON.stringify(['REQ', mainSubId, {
     kinds: [1, 6],
     authors: [...followedPubkeys],
     since,
-    limit: 50,
+    limit,
   }]));
 }
 
