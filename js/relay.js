@@ -378,6 +378,28 @@ function handleMessage(msg) {
       return;
     }
 
+    // replies- サブスクはseenEventsより先に処理する
+    // フォロー中ユーザーの返信がreplies-で先取りされてmainSubIdからブロックされないようにするため
+    if (event.kind === 1 && subId.startsWith('replies-')) {
+      const eTags = event.tags.filter(t => t[0] === 'e');
+      if (eTags.length > 0) addReply(event);
+      if (followedPubkeys.has(event.pubkey) && !seenEvents.has(event.id)) {
+        addSeenEvent(event.id);
+        fetchProfile(event.pubkey);
+        const isScrolledDown = window.scrollY > 200;
+        if (isScrolledDown) {
+          pendingPosts.push(event);
+          showNewPostsBanner();
+        } else {
+          posts.push(event);
+          posts.sort((a, b) => b.created_at - a.created_at);
+          if (posts.length > 1000) posts = posts.slice(0, 1000);
+          scheduleRenderPosts();
+        }
+      }
+      return;
+    }
+
     if (seenEvents.has(event.id)) return;
     addSeenEvent(event.id);
 
@@ -440,13 +462,7 @@ function handleMessage(msg) {
       }
     }
 
-    // Replies fetched via #e filter
-    if (event.kind === 1 && subId.startsWith('replies-')) {
-      const eTags = event.tags.filter(t => t[0] === 'e');
-      if (eTags.length > 0) addReply(event);
-    }
-
-    // targets- イベントは上部で処理済みのためここには到達しない
+    // replies- / targets- イベントは上部で処理済みのためここには到達しない
 
     if ([1, 6, 7].includes(event.kind) && profileSubId && subId === profileSubId) {
       handleProfileSubEvent(event);
