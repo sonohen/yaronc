@@ -564,7 +564,7 @@ function fetchOlderPosts() {
   for (const [, conn] of connections) {
     if (conn.ws?.readyState === WebSocket.OPEN) {
       conn.ws.send(JSON.stringify(['REQ', olderSubId, {
-        kinds: [1, 6, 7],
+        kinds: [1, 6],
         authors: [...followedPubkeys],
         until: oldestTs,
         limit,
