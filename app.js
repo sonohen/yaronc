@@ -211,7 +211,7 @@ function buildReplyThread(eventId) {
 
     const body = document.createElement('div');
     body.className = 'thread-item-body';
-    renderTextWithTags(body, text);
+    renderTextWithTags(body, text, extractCustomEmojis(reply.tags));
 
     const grid = buildImageGrid(imageUrls.slice(0, 2), url => openImageViewer(url));
     const tweetEmbeds = buildTweetEmbeds(tweetUrls.slice(0, 1));
@@ -706,24 +706,30 @@ function buildMentionEl(pubkey) {
   return span;
 }
 
-function renderTextWithTags(container, text) {
-  const parts = text.split(/(#[^\s#]+|nostr:(?:nprofile1|npub1)[a-z0-9]+)/gi);
-  for (const part of parts) {
-    if (part.startsWith('#') && part.length > 1) {
+function renderTextWithTags(container, text, customEmojis = new Map()) {
+  for (const part of buildContentParts(text, customEmojis)) {
+    if (part.type === 'hashtag') {
       const tag = document.createElement('span');
       tag.className = 'hashtag-link';
-      tag.textContent = part;
-      tag.addEventListener('click', e => { e.stopPropagation(); applySearch(part); });
+      tag.textContent = part.value;
+      tag.addEventListener('click', e => { e.stopPropagation(); applySearch(part.value); });
       container.appendChild(tag);
-    } else if (/^nostr:(?:nprofile1|npub1)/i.test(part)) {
+    } else if (part.type === 'mention') {
       try {
-        const pubkey = decodeMentionPubkey(part);
+        const pubkey = decodeMentionPubkey(part.value);
         container.appendChild(buildMentionEl(pubkey));
       } catch (_) {
-        container.appendChild(document.createTextNode(part));
+        container.appendChild(document.createTextNode(part.value));
       }
+    } else if (part.type === 'emoji') {
+      const img = document.createElement('img');
+      img.src = part.url;
+      img.alt = `:${part.shortcode}:`;
+      img.className = 'custom-emoji';
+      img.loading = 'lazy';
+      container.appendChild(img);
     } else {
-      container.appendChild(document.createTextNode(part));
+      container.appendChild(document.createTextNode(part.value));
     }
   }
 }
