@@ -154,6 +154,35 @@ function refreshCardAuthor(card, event) {
   }
 }
 
+// ---- NIP-30 Custom Emoji ----
+function extractCustomEmojis(tags) {
+  const map = new Map();
+  for (const tag of tags) {
+    if (tag[0] === 'emoji' && tag[1] && tag[2]) map.set(tag[1], tag[2]);
+  }
+  return map;
+}
+
+// テキストをハッシュタグ・nostr メンション・カスタム絵文字・プレーンテキストに分割する。
+function buildContentParts(text, customEmojis = new Map()) {
+  const parts = [];
+  const SPLIT_RE = /(#[^\s#]+|nostr:(?:nprofile1|npub1)[a-z0-9]+|:[^:\s]+:)/gi;
+  for (const part of text.split(SPLIT_RE)) {
+    if (!part) continue;
+    if (part.startsWith('#') && part.length > 1) {
+      parts.push({ type: 'hashtag', value: part });
+    } else if (/^nostr:(?:nprofile1|npub1)/i.test(part)) {
+      parts.push({ type: 'mention', value: part });
+    } else if (/^:[^:\s]+:$/.test(part) && customEmojis.has(part.slice(1, -1))) {
+      const shortcode = part.slice(1, -1);
+      parts.push({ type: 'emoji', shortcode, url: customEmojis.get(shortcode) });
+    } else {
+      parts.push({ type: 'text', value: part });
+    }
+  }
+  return parts;
+}
+
 // ---- Reactions ----
 function customEmojiUrl(event) {
   const m = /^:([^:]+):$/.exec(event.content);
@@ -877,7 +906,7 @@ function createPostCard(event) {
 
   const body = document.createElement('div');
   body.className = `post-body${textContent ? ' truncated' : ''}`;
-  renderTextWithTags(body, textContent);
+  renderTextWithTags(body, textContent, extractCustomEmojis(event.tags));
 
   const footer = document.createElement('div');
   footer.className = 'post-footer';
