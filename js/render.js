@@ -366,6 +366,9 @@ function renderPosts() {
       if (reactionsEl) renderCardReactions(reactionsEl, event.id);
       // プロフィールが後から届いたとき（初回ログイン時など）に著者名・アバターを更新する
       refreshCardAuthor(card, event);
+      // 返信者のプロフィールが後から届いたときにリプライプレビューを更新する
+      const replyPreviewEl = card.querySelector('.post-reply-preview');
+      if (replyPreviewEl) renderCardReplyPreview(replyPreviewEl, event.id);
     }
 
     const expectedNext = prevEl ? prevEl.nextSibling : postListEl.firstChild;
