@@ -1611,6 +1611,12 @@ select:focus { border-color: var(--accent); }
   vertical-align: middle;
   transition: transform 0.15s ease;
 }
+.custom-emoji {
+  height: 2em;
+  width: auto;
+  object-fit: contain;
+  vertical-align: middle;
+}
 .reaction-emoji-img:hover {
   transform: scale(2);
   z-index: 1;
