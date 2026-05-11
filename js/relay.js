@@ -51,6 +51,10 @@ function fetchNip65RelayLists() {
       nip65EoseExpected++;
     }
   }
+  // 接続リレーがない場合は outbox データなしで即適用
+  if (nip65EoseExpected === 0) { applyOutboxModel(); return; }
+  // リレーが EOSE を送らずに切断した場合のフォールバック（10秒後）
+  setTimeout(() => { if (!nip65Applied) applyOutboxModel(); }, 10000);
 }
 
 const MAX_WRITE_RELAYS_PER_USER = 3;
@@ -127,7 +131,13 @@ function connectOutboxRelay(url, pubkeys, since, limit) {
   ws.addEventListener('message', e => {
     try { handleMessage(JSON.parse(e.data), ws); } catch (_) {}
   });
-  ws.addEventListener('close', () => { outboxConnections.delete(url); });
+  ws.addEventListener('close', () => {
+    if (loadingOlder && olderEoseExpected > 0) {
+      olderEoseExpected--;
+      if (olderEoseReceived >= olderEoseExpected) flushOlderPosts();
+    }
+    outboxConnections.delete(url);
+  });
   ws.addEventListener('error', () => { outboxConnections.delete(url); });
 }
 
@@ -296,8 +306,14 @@ function removeRelay(url) {
   activeRelays = activeRelays.filter(r => r !== url);
   saveRelays();
   const conn = connections.get(url);
-  if (conn && conn.ws) {
+  if (conn?.ws) {
     conn.closing = true;
+    // close イベントは connections.delete 後に非同期発火するため早期 return してしまう。
+    // ページネーション中に削除された場合は、ここで明示的にカウントを調整する。
+    if (loadingOlder && conn.ws.readyState === WebSocket.OPEN && olderEoseExpected > 0) {
+      olderEoseExpected--;
+      if (olderEoseReceived >= olderEoseExpected) flushOlderPosts();
+    }
     conn.ws.close();
   }
   connections.delete(url);
@@ -819,7 +835,7 @@ function flushTargetFetches() {
     const ws = new WebSocket(relayUrl);
     connections.get(relayUrl).ws = ws;
     ws.addEventListener('open', () => { ws.send(JSON.stringify(req)); });
-    ws.addEventListener('message', e => { try { handleMessage(JSON.parse(e.data)); } catch (_) {} });
+    ws.addEventListener('message', e => { try { handleMessage(JSON.parse(e.data), ws); } catch (_) {} });
     const timer = setTimeout(() => ws.close(), 8000);
     ws.addEventListener('close', () => { clearTimeout(timer); connections.delete(relayUrl); });
     ws.addEventListener('error', () => { clearTimeout(timer); connections.delete(relayUrl); });
