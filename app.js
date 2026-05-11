@@ -91,7 +91,7 @@ function openModal(event) {
 
   modalBody.innerHTML = `
     <div class="post-header" style="margin-bottom:16px"></div>
-    ${textContent ? `<div class="post-body" style="margin-bottom:16px">${escHtml(textContent)}</div>` : ''}
+    ${textContent ? '<div class="post-body" style="margin-bottom:16px"></div>' : ''}
     <div class="modal-detail-label">イベントID</div>
     <div class="modal-detail-value">${escHtml(event.id)}</div>
     <div class="modal-detail-label">公開鍵</div>
@@ -99,6 +99,11 @@ function openModal(event) {
     <div class="modal-detail-label">タイムスタンプ</div>
     <div class="modal-detail-value">${escHtml(formatDate(event.created_at))}</div>
   `;
+
+  if (textContent) {
+    const bodyEl = modalBody.querySelector('.post-body');
+    renderTextWithTags(bodyEl, textContent, extractCustomEmojis(event.tags));
+  }
 
   const ph = modalBody.querySelector('.post-header');
   ph.appendChild(avatarEl(event.pubkey, profile.picture));
