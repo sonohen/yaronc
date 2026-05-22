@@ -235,7 +235,7 @@ function connectRelay(url) {
 
   ws.addEventListener('open', () => {
     updateRelayStatus(url, 'ok');
-    if (mainSubId && followedPubkeys.size > 0) sendMainSub(ws);
+    if (mainSubId && followedPubkeys.size > 0) { sendMainSub(ws); sendZapSub(ws); }
     if (profileSubId && !profileModal.classList.contains('hidden') && profileCurrentPubkey) {
       const req = ['REQ', profileSubId, { kinds: [1, 6, 7], authors: [profileCurrentPubkey], limit: 60 }];
       ws.send(JSON.stringify(req));
@@ -440,12 +440,18 @@ function adaptiveLimit(targetTotal) {
 }
 
 // ---- Main feed subscription ----
+let zapSubId = null;
+
 function startMainFeed() {
   mainSubId = 'feed-' + Math.random().toString(36).slice(2, 8);
+  zapSubId  = 'zaps-' + Math.random().toString(36).slice(2, 8);
   loadingText.textContent = 'フォロー中のユーザーの投稿を取得中...';
 
   for (const [, conn] of connections) {
-    if (conn.ws && conn.ws.readyState === WebSocket.OPEN) sendMainSub(conn.ws);
+    if (conn.ws && conn.ws.readyState === WebSocket.OPEN) {
+      sendMainSub(conn.ws);
+      sendZapSub(conn.ws);
+    }
   }
 }
 
@@ -458,6 +464,19 @@ function sendMainSub(ws) {
     authors: [...followedPubkeys],
     since,
     limit,
+  }]));
+}
+
+// kind:9735 は pubkey がウォレットサーバーになるため authors フィルター不可。
+// '#p' でフォロー中ユーザーが受け取ったZapを購読する。
+function sendZapSub(ws) {
+  if (!zapSubId || followedPubkeys.size === 0) return;
+  const since = Math.floor(Date.now() / 1000) - 12 * 3600;
+  ws.send(JSON.stringify(['REQ', zapSubId, {
+    kinds: [9735],
+    '#p': [...followedPubkeys],
+    since,
+    limit: 200,
   }]));
 }
 
@@ -556,6 +575,19 @@ function handleMessage(msg, ws) {
 
     if (event.kind === 3 && event.pubkey === currentUserHex) {
       handleContactEvent(event);
+      return;
+    }
+
+    if (event.kind === 9735) {
+      const targetId = (event.tags.find(t => t[0] === 'e') || [])[1];
+      const bolt11   = (event.tags.find(t => t[0] === 'bolt11') || [])[1];
+      if (targetId && bolt11) {
+        const sats = parseBolt11Sats(bolt11);
+        if (sats > 0) {
+          addToZapMap(targetId, sats);
+          updateCardZapsInPlace(targetId);
+        }
+      }
       return;
     }
 
