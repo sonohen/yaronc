@@ -416,7 +416,7 @@ function startContactLiveSub() {
 function fetchNewFollowsPosts(pubkeys) {
   const subId = 'new-follows-' + Math.random().toString(36).slice(2, 8);
   const limit = parseInt(limitSelect.value, 10);
-  const req = ['REQ', subId, { kinds: [1, 6], authors: pubkeys, limit }];
+  const req = ['REQ', subId, { kinds: [1, 6, 7], authors: pubkeys, limit }];
   for (const [, conn] of connections) {
     if (conn.ws?.readyState === WebSocket.OPEN)
       conn.ws.send(JSON.stringify(req));
@@ -454,7 +454,7 @@ function sendMainSub(ws) {
   const since = Math.floor(Date.now() / 1000) - 12 * 3600;
   const limit = adaptiveLimit(parseInt(limitSelect.value, 10));
   ws.send(JSON.stringify(['REQ', mainSubId, {
-    kinds: [1, 6],
+    kinds: [1, 6, 7],
     authors: [...followedPubkeys],
     since,
     limit,
@@ -508,7 +508,6 @@ function handleMessage(msg, ws) {
             if (orig && orig.id) { cacheEvent(orig.id, orig); fetchProfile(orig.pubkey); }
           } catch (_) {}
         }
-        if (event.kind === 7) { addToReactionMap(event); return; }
       }
       fetchProfile(event.pubkey);
       olderPostsBuffer.push(event);
@@ -586,8 +585,7 @@ function handleMessage(msg, ws) {
         addToReactionMap(event);
         const targetId = (event.tags.find(t => t[0] === 'e') || [])[1];
         if (targetId) updateCardReactionsInPlace(targetId);
-        fetchProfile(event.pubkey);
-        return;
+        // return を除去 → posts.push まで到達させてタイムラインに表示する
       }
       fetchProfile(event.pubkey);
       loadingEl.classList.add('hidden');
