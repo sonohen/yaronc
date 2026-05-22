@@ -2119,3 +2119,30 @@ select:focus { border-color: var(--accent); }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+/* ---- NIP-36 Content Warning ---- */
+.content-warning-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  background: var(--surface2);
+  border-radius: 8px;
+  margin: 4px 0 2px;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+.cw-label { flex: 1; }
+.cw-toggle {
+  padding: 2px 12px;
+  border-radius: 12px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.78rem;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.cw-toggle:hover { opacity: 0.85; }
+.cw-body.cw-hidden { display: none; }

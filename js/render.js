@@ -923,6 +923,7 @@ function createPostCard(event) {
 
   card.appendChild(header);
 
+  // 返信元の引用（常に表示 — コンテキストのため CW でも隠さない）
   const parentTag = getReplyParentTag(event);
   const parentId = parentTag?.[1] || null;
   const parentRelayHint = parentTag?.[2] ? [parentTag[2]] : [];
@@ -944,21 +945,49 @@ function createPostCard(event) {
     card.appendChild(quoteWrap);
   }
 
-  if (textContent) card.appendChild(body);
+  // NIP-36: content-warning タグがあれば警告バーを表示し本文を隠す
+  const cwTag = event.tags.find(t => t[0] === 'content-warning');
+  const cwReason = cwTag ? (cwTag[1] || '') : null;
+
+  if (cwReason !== null) {
+    const cwBar = document.createElement('div');
+    cwBar.className = 'content-warning-bar';
+    const cwLabel = document.createElement('span');
+    cwLabel.className = 'cw-label';
+    cwLabel.textContent = cwReason ? `⚠ コンテンツ警告: ${cwReason}` : '⚠ コンテンツ警告';
+    const cwBtn = document.createElement('button');
+    cwBtn.className = 'cw-toggle';
+    cwBtn.textContent = '表示する';
+    cwBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      const nowHidden = cwBody.classList.toggle('cw-hidden');
+      cwBtn.textContent = nowHidden ? '表示する' : '隠す';
+    });
+    cwBar.appendChild(cwLabel);
+    cwBar.appendChild(cwBtn);
+    card.appendChild(cwBar);
+  }
+
+  // 本文・メディア・返信プレビューをラッパーで包む（CW 時は初期非表示）
+  const cwBody = document.createElement('div');
+  cwBody.className = cwReason !== null ? 'cw-body cw-hidden' : 'cw-body';
+
+  if (textContent) cwBody.appendChild(body);
   const grid = buildImageGrid(imageUrls, url => openImageViewer(url));
-  if (grid) card.appendChild(grid);
+  if (grid) cwBody.appendChild(grid);
   const tweetEmbeds = buildTweetEmbeds(tweetUrls);
-  if (tweetEmbeds) card.appendChild(tweetEmbeds);
+  if (tweetEmbeds) cwBody.appendChild(tweetEmbeds);
   const youtubeEmbeds = buildYoutubeEmbeds(youtubeUrls);
-  if (youtubeEmbeds) card.appendChild(youtubeEmbeds);
-  if (nostrRefs.length > 0) buildNostrEmbeds(nostrRefs, card);
-  if (profileRefs.length > 0) buildProfileEmbeds(profileRefs, card);
+  if (youtubeEmbeds) cwBody.appendChild(youtubeEmbeds);
+  if (nostrRefs.length > 0) buildNostrEmbeds(nostrRefs, cwBody);
+  if (profileRefs.length > 0) buildProfileEmbeds(profileRefs, cwBody);
 
   const replyPreview = document.createElement('div');
   replyPreview.className = 'post-reply-preview';
   renderCardReplyPreview(replyPreview, event.id);
-  card.appendChild(replyPreview);
+  cwBody.appendChild(replyPreview);
 
+  card.appendChild(cwBody);
   card.appendChild(footer);
   return card;
 }
