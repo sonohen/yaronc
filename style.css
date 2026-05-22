@@ -2120,6 +2120,21 @@ select:focus { border-color: var(--accent); }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
 
+/* ---- NIP-57 Zaps ---- */
+.post-zaps { display: flex; align-items: center; }
+.zap-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: color-mix(in srgb, var(--yellow) 15%, var(--surface2));
+  border: 1px solid color-mix(in srgb, var(--yellow) 40%, transparent);
+  border-radius: 99px;
+  padding: 2px 8px;
+  font-size: 13px;
+  color: var(--yellow);
+  cursor: default;
+}
+
 /* ---- NIP-36 Content Warning ---- */
 .content-warning-bar {
   display: flex;

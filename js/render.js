@@ -242,6 +242,61 @@ function updateCardReactionsInPlace(targetId) {
   if (el) renderCardReactions(el, targetId);
 }
 
+// ---- NIP-57 Zaps ----
+
+/**
+ * bolt11 インボイス文字列から satoshi 金額を抽出する。
+ * BOLT-11 の amount は BTC 単位 + 乗数サフィックス(m/u/n/p)で表現される。
+ */
+function parseBolt11Sats(bolt11) {
+  if (!bolt11 || typeof bolt11 !== 'string') return 0;
+  const m = bolt11.toLowerCase().match(/^lnbc(\d+)([munp])?1/);
+  if (!m) return 0;
+  const n = parseInt(m[1], 10);
+  switch (m[2]) {
+    case 'm': return n * 100000;           // milli:  n × 0.001 BTC
+    case 'u': return n * 100;              // micro:  n × 0.000001 BTC
+    case 'n': return Math.round(n / 10);   // nano:   n × 0.000000001 BTC
+    case 'p': return 0;                    // pico:   sub-satoshi — 無視
+    default:  return n * 100000000;        // no suffix = whole BTC
+  }
+}
+
+function formatSats(n) {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`;
+  if (n >= 1000)      return `${(n / 1000).toFixed(1).replace(/\.0$/, '')}K`;
+  return String(n);
+}
+
+function addToZapMap(targetId, sats) {
+  if (!targetId || sats <= 0) return;
+  const existing = zapMap.get(targetId);
+  if (existing) {
+    existing.total += sats;
+    existing.count++;
+  } else {
+    zapMap.set(targetId, { total: sats, count: 1 });
+  }
+}
+
+function renderCardZaps(el, eventId) {
+  el.innerHTML = '';
+  const zap = zapMap.get(eventId);
+  if (!zap || zap.total === 0) return;
+  const chip = document.createElement('span');
+  chip.className = 'zap-chip';
+  chip.textContent = `⚡ ${formatSats(zap.total)}`;
+  chip.title = `${zap.count}件のZap · 合計 ${zap.total.toLocaleString()} sats`;
+  el.appendChild(chip);
+}
+
+function updateCardZapsInPlace(targetId) {
+  const card = postListEl.querySelector(`.post-card[data-event-id="${targetId}"]`);
+  if (!card) return;
+  const el = card.querySelector('.post-footer .post-zaps');
+  if (el) renderCardZaps(el, targetId);
+}
+
 // ---- Ranking ----
 function renderRanking(filtered) {
   const counts = new Map();
@@ -393,6 +448,8 @@ function renderPosts() {
     } else if (!card.classList.contains('v-placeholder')) {
       const reactionsEl = card.querySelector('.post-reactions');
       if (reactionsEl) renderCardReactions(reactionsEl, event.id);
+      const zapsEl = card.querySelector('.post-zaps');
+      if (zapsEl) renderCardZaps(zapsEl, event.id);
       // プロフィールが後から届いたとき（初回ログイン時など）に著者名・アバターを更新する
       refreshCardAuthor(card, event);
       // 返信者のプロフィールが後から届いたときにリプライプレビューを更新する
@@ -915,6 +972,11 @@ function createPostCard(event) {
   reactions.className = 'post-reactions';
   renderCardReactions(reactions, event.id);
   footer.appendChild(reactions);
+
+  const zaps = document.createElement('div');
+  zaps.className = 'post-zaps';
+  renderCardZaps(zaps, event.id);
+  footer.appendChild(zaps);
 
   const kindBadge = document.createElement('span');
   kindBadge.className = 'post-kind';

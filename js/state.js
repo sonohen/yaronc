@@ -22,6 +22,7 @@ var seenEvents = new Set();
 var connections = new Map();
 var reactionMap = new Map();
 var replyMap = new Map();
+var zapMap = new Map();     // targetEventId → { total: number (sats), count: number }
 var pendingTargetCards = new Map();
 var nip65Cache = new Map();       // pubkey → {write: string[], ts: number}
 var outboxConnections = new Map(); // url → {ws, closing}

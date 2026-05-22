@@ -44,6 +44,7 @@ logoutBtn.addEventListener('click', () => {
   contactListTs = 0; // 再ログイン時に handleContactEvent が startMainFeed を呼べるようリセット
   reactionMap.clear();
   replyMap.clear();
+  zapMap.clear();
   hideNewPostsBanner();
   for (const [, conn] of connections) { try { conn.ws.close(); } catch (_) {} }
   connections.clear();
@@ -614,13 +615,15 @@ function doRefresh() {
   seenEvents.clear();
   reactionMap.clear();
   replyMap.clear();
+  zapMap.clear();
   mainSubId = 'feed-' + Math.random().toString(36).slice(2, 8);
+  zapSubId  = 'zaps-' + Math.random().toString(36).slice(2, 8);
   loadingEl.classList.remove('hidden');
   loadingText.textContent = 'フォロー中のユーザーの投稿を取得中...';
   postListEl.innerHTML = '';
   postCountEl.textContent = '0件';
   for (const [, conn] of connections) {
-    if (conn.ws && conn.ws.readyState === WebSocket.OPEN) sendMainSub(conn.ws);
+    if (conn.ws && conn.ws.readyState === WebSocket.OPEN) { sendMainSub(conn.ws); sendZapSub(conn.ws); }
   }
 }
 
