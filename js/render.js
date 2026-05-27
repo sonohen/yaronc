@@ -768,7 +768,7 @@ function fillRepostPreview(el, origEvent) {
   if (text) {
     const textEl = document.createElement('div');
     textEl.className = 'reaction-preview-text';
-    textEl.textContent = text;
+    renderTextWithTags(textEl, text, extractCustomEmojis(origEvent.tags));
     el.appendChild(textEl);
   }
 
@@ -899,7 +899,7 @@ function fillReactionPreview(el, targetEvent) {
   if (text) {
     const textEl = document.createElement('div');
     textEl.className = 'reaction-preview-text';
-    textEl.textContent = text;
+    renderTextWithTags(textEl, text, extractCustomEmojis(targetEvent.tags));
     el.appendChild(textEl);
   }
 
@@ -1202,7 +1202,7 @@ function fillReplyQuote(wrap, parentEvent) {
   if (text) {
     const textEl = document.createElement('div');
     textEl.className = 'reply-quote-text';
-    textEl.textContent = text;
+    renderTextWithTags(textEl, text, extractCustomEmojis(parentEvent.tags));
     quote.appendChild(textEl);
   }
   if (imageUrls.length > 0) {
@@ -1259,7 +1259,7 @@ function renderCardReplyPreview(el, eventId) {
 
   const textEl = document.createElement('div');
   textEl.className = 'reply-bubble-text';
-  textEl.textContent = text;
+  renderTextWithTags(textEl, text, extractCustomEmojis(latest.tags));
 
   bubble.appendChild(nameEl);
   bubble.appendChild(textEl);
