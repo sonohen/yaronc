@@ -692,14 +692,17 @@ function fetchProfile(pubkey) {
   }
   pendingProfiles.add(pubkey);
   clearTimeout(profileFetchTimer);
-  profileFetchTimer = setTimeout(() => {
-    const keys = [...pendingProfiles].slice(0, 50);
-    pendingProfiles.clear();
-    const req = ['REQ', 'profiles-' + Math.random().toString(36).slice(2, 8), { kinds: [0], authors: keys }];
-    for (const [, conn] of connections) {
-      if (conn.ws && conn.ws.readyState === WebSocket.OPEN) { conn.ws.send(JSON.stringify(req)); break; }
-    }
-  }, 500);
+  profileFetchTimer = setTimeout(flushPendingProfiles, 500);
+}
+
+function flushPendingProfiles() {
+  if (pendingProfiles.size === 0) return;
+  const keys = [...pendingProfiles];
+  pendingProfiles.clear();
+  const req = ['REQ', 'profiles-' + Math.random().toString(36).slice(2, 8), { kinds: [0], authors: keys }];
+  for (const [, conn] of connections) {
+    if (conn.ws && conn.ws.readyState === WebSocket.OPEN) conn.ws.send(JSON.stringify(req));
+  }
 }
 
 function fetchProfileImmediate(pubkey) {
