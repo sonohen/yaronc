@@ -41,6 +41,9 @@ var nip65EoseExpected = 0;
 var nip65EoseReceived = 0;
 var nip65Applied = false;
 
+var contactEoseExpected = 0;
+var contactEoseReceived = 0;
+
 function handleNip65Event(event) {
   const existing = nip65Cache.get(event.pubkey);
   if (existing && existing.ts >= event.created_at) return;
@@ -340,13 +343,15 @@ const CONTACT_LIVE_SUB = 'contacts-live'; // 常時監視サブ（フォロー�
 function fetchContactList(pubkey, retries = 0) {
   const MAX_RETRIES = 15; // 最大 15 × 800ms ≒ 12秒
   const req = ['REQ', CONTACT_SUB, { kinds: [3], authors: [pubkey], limit: 1 }];
-  let sent = false;
+  let sent = 0;
   for (const [, conn] of connections) {
     if (conn.ws && conn.ws.readyState === WebSocket.OPEN) {
       conn.ws.send(JSON.stringify(req));
-      sent = true;
+      sent++;
     }
   }
+  contactEoseExpected = sent;
+  contactEoseReceived = 0;
   if (!sent) {
     if (retries < MAX_RETRIES) {
       setTimeout(() => fetchContactList(pubkey, retries + 1), 800);
@@ -636,9 +641,12 @@ function handleMessage(msg, ws) {
   }
 
   if (type === 'EOSE' && subId === CONTACT_SUB) {
-    if (followedPubkeys.size === 0) {
-      loadingEl.classList.add('hidden');
-      postListEl.innerHTML = '<div class="empty-state"><h3>フォローリストがありません</h3><p>このアカウントにはフォローリストが見つかりませんでした</p></div>';
+    contactEoseReceived++;
+    if (contactEoseReceived >= contactEoseExpected && contactEoseExpected > 0) {
+      if (followedPubkeys.size === 0) {
+        loadingEl.classList.add('hidden');
+        postListEl.innerHTML = '<div class="empty-state"><h3>フォローリストがありません</h3><p>このアカウントにはフォローリストが見つかりませんでした</p></div>';
+      }
     }
   }
 
