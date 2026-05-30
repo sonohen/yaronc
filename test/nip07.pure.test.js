@@ -16,7 +16,10 @@ function parseExtensionRelays(relayMap) {
     .filter(([url, policy]) => {
       if (typeof url !== 'string') return false;
       if (!url.startsWith('wss://') && !url.startsWith('ws://')) return false;
-      return policy && (policy.read || policy.write);
+      if (policy === null || policy === undefined || policy === false) return false;
+      if (policy === true) return true;
+      if (typeof policy === 'object') return policy.read || policy.write;
+      return false;
     })
     .map(([url]) => url);
 }
@@ -108,4 +111,35 @@ test('parseExtensionRelays: URL のみが配列に入る', () => {
   const map = { 'wss://relay.example.com': { read: true, write: true } };
   const result = parseExtensionRelays(map);
   assert.equal(typeof result[0], 'string');
+});
+
+// nos2x が {url: boolean} 形式（非標準）で返す場合
+test('parseExtensionRelays: policy が boolean true のリレーは含まれる', () => {
+  const map = {
+    'wss://r.kojira.io': true,
+    'wss://yabu.me':     true,
+  };
+  const result = parseExtensionRelays(map);
+  assert.equal(result.length, 2);
+  assert.ok(result.includes('wss://r.kojira.io'));
+  assert.ok(result.includes('wss://yabu.me'));
+});
+
+test('parseExtensionRelays: policy が boolean false のリレーは除外される', () => {
+  const map = { 'wss://relay.example.com': false };
+  const result = parseExtensionRelays(map);
+  assert.equal(result.length, 0);
+});
+
+test('parseExtensionRelays: {read: boolean, write: boolean} と boolean true の混在を正しく処理する', () => {
+  const map = {
+    'wss://relay.damus.io':    { read: true, write: true },  // 標準形式
+    'wss://r.kojira.io':       true,                          // boolean 形式
+    'wss://disabled.relay.com': false,                         // 無効
+    'wss://also-disabled.com': { read: false, write: false }, // 無効（標準）
+  };
+  const result = parseExtensionRelays(map);
+  assert.equal(result.length, 2);
+  assert.ok(result.includes('wss://relay.damus.io'));
+  assert.ok(result.includes('wss://r.kojira.io'));
 });
