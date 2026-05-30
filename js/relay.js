@@ -22,6 +22,18 @@ function cacheEvent(id, event) {
   eventCache.set(id, event);
 }
 
+// ---- NIP-07 Extension helpers ----
+function parseExtensionRelays(relayMap) {
+  if (!relayMap || typeof relayMap !== 'object' || Array.isArray(relayMap)) return [];
+  return Object.entries(relayMap)
+    .filter(([url, policy]) => {
+      if (typeof url !== 'string') return false;
+      if (!url.startsWith('wss://') && !url.startsWith('ws://')) return false;
+      return policy && (policy.read || policy.write);
+    })
+    .map(([url]) => url);
+}
+
 // ---- NIP-65 Outbox model ----
 const NIP65_SUB = 'nip65-fetch';
 const MAX_OUTBOX_RELAYS = 6;
