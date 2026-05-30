@@ -30,11 +30,22 @@ function hideLoginError() {
 
 // ---- NIP-07 Extension login ----
 function initExtensionLogin() {
-  if (typeof window.nostr !== 'undefined') {
-    extensionLoginBtn.classList.remove('hidden');
-  } else {
-    extensionUnavailable.classList.remove('hidden');
+  // 拡張機能のコンテンツスクリプトは非同期で注入されるため、
+  // 即時チェックに加えて最大 1 秒間ポーリングして検出する。
+  let tries = 0;
+  function check() {
+    if (typeof window.nostr !== 'undefined') {
+      extensionLoginBtn.classList.remove('hidden');
+      extensionUnavailable.classList.add('hidden');
+      return;
+    }
+    if (++tries < 10) {
+      setTimeout(check, 100);
+    } else {
+      extensionUnavailable.classList.remove('hidden');
+    }
   }
+  check();
 }
 
 extensionLoginBtn.addEventListener('click', async () => {
