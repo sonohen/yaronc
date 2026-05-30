@@ -29,7 +29,10 @@ function parseExtensionRelays(relayMap) {
     .filter(([url, policy]) => {
       if (typeof url !== 'string') return false;
       if (!url.startsWith('wss://') && !url.startsWith('ws://')) return false;
-      return policy && (policy.read || policy.write);
+      if (policy === null || policy === undefined || policy === false) return false;
+      if (policy === true) return true;
+      if (typeof policy === 'object') return policy.read || policy.write;
+      return false;
     })
     .map(([url]) => url);
 }
