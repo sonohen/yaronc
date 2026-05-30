@@ -51,6 +51,7 @@ logoutBtn.addEventListener('click', () => {
   for (const [, conn] of outboxConnections) { try { conn.ws.close(); } catch (_) {} }
   outboxConnections.clear();
   nip65Cache.clear();
+  closeSearchSub();
   postListEl.innerHTML = '';
   loadingEl.classList.remove('hidden');
   loadingText.textContent = '投稿を取得中...';
@@ -675,6 +676,7 @@ function applySearch(query) {
   headerSearchInput.value = q;
   searchClearBtn.classList.toggle('hidden', !q);
   headerSearchClearBtn.classList.toggle('hidden', !q);
+  sendSearchSub(q); // NIP-50: リレーへ検索クエリを送信
   renderPosts();
 }
 
