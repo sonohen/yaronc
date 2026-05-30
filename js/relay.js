@@ -496,6 +496,18 @@ function handleMessage(msg, ws) {
       return;
     }
 
+    // NIP-50 検索サブスクリプション — seenEvents に追加しないことで
+    // 同イベントが mainSub 経由でタイムラインへ表示されることを妨げない。
+    if (searchSubId && subId === searchSubId && event.kind === 1) {
+      if (!searchResults.some(p => p.id === event.id)) {
+        searchResults.push(event);
+        cacheEvent(event.id, event);
+        fetchProfile(event.pubkey);
+        scheduleRenderPosts();
+      }
+      return;
+    }
+
     // Older posts fetched via until filter
     // seenEvents チェックより先に処理する。replies- や targets- サブで seenEvents に
     // 登録された投稿がスクロール時に再取得できなくなる（穴が開く）バグを防ぐ。
@@ -636,6 +648,7 @@ function handleMessage(msg, ws) {
         subId.startsWith('targets-') ||
         subId.startsWith('profiles-') ||
         subId.startsWith('new-follows-') ||
+        subId.startsWith('search-') ||
         subId === 'self-profile') {
       if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(['CLOSE', subId]));
     }
@@ -725,6 +738,53 @@ function updateHeaderProfile() {
   wrap.style.cursor = 'pointer';
   wrap.addEventListener('click', () => openProfileModal(currentUserHex));
   headerAvatar.appendChild(wrap);
+}
+
+// ---- NIP-50 Search ----
+function buildSearchFilter(query, limit = 50) {
+  const q = (query || '').trim();
+  if (!q) return null;
+  return { kinds: [1], search: q, limit };
+}
+
+function mergeSearchResults(localPosts, relayResults, query) {
+  const q = (query || '').toLowerCase().trim();
+  const local = q
+    ? localPosts.filter(p => p.content.toLowerCase().includes(q))
+    : [];
+  const seen = new Set(local.map(p => p.id));
+  const merged = [...local];
+  for (const p of relayResults) {
+    if (!seen.has(p.id)) {
+      seen.add(p.id);
+      merged.push(p);
+    }
+  }
+  return merged.sort((a, b) => b.created_at - a.created_at);
+}
+
+function sendSearchSub(query) {
+  closeSearchSub();
+  const filter = buildSearchFilter(query);
+  if (!filter) return;
+  const subId = 'search-' + Math.random().toString(36).slice(2, 8);
+  searchSubId = subId;
+  const req = ['REQ', subId, filter];
+  for (const [, conn] of connections) {
+    if (conn.ws && conn.ws.readyState === WebSocket.OPEN) conn.ws.send(JSON.stringify(req));
+  }
+}
+
+function closeSearchSub() {
+  searchResults = [];
+  if (!searchSubId) return;
+  const closing = searchSubId;
+  searchSubId = null;
+  for (const [, conn] of connections) {
+    if (conn.ws && conn.ws.readyState === WebSocket.OPEN) {
+      conn.ws.send(JSON.stringify(['CLOSE', closing]));
+    }
+  }
 }
 
 // ---- Reply fetching ----

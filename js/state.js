@@ -15,6 +15,8 @@ var contactListTs = 0; // 現在のフォローリスト (kind:3) の created_at
 var loadingOlder = false;
 var olderEoseExpected = 0;
 var olderEoseReceived = 0;
+var searchSubId = null;
+var searchResults = []; // NIP-50 リレー検索結果
 
 var eventCache = new Map();
 var mentionCallbacks = new Map();

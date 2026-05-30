@@ -352,7 +352,9 @@ function vsRestore(ph) {
 // ---- Render ----
 function renderPosts() {
   let filtered = kindFilter === 'all' ? posts : posts.filter(p => String(p.kind) === kindFilter);
-  if (searchQuery) filtered = filtered.filter(p => p.content.toLowerCase().includes(searchQuery.toLowerCase()));
+  if (searchQuery) {
+    filtered = mergeSearchResults(filtered, searchResults, searchQuery);
+  }
   if (authorFilter) filtered = filtered.filter(p => p.pubkey === authorFilter);
   updateAuthorFilterBanner();
 
