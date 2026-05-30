@@ -634,7 +634,7 @@ function doRefresh() {
 }
 
 searchInput.addEventListener('keydown', e => { if (e.key === 'Enter') applySearch(); });
-searchBtn.addEventListener('click', applySearch);
+searchBtn.addEventListener('click', () => applySearch());
 
 function setAuthorFilter(pubkey) {
   authorFilter = pubkey;
@@ -833,7 +833,7 @@ headerSearchInput.addEventListener('input', () => {
   renderPosts();
 });
 headerSearchInput.addEventListener('keydown', e => {
-  if (e.key === 'Enter') renderPosts();
+  if (e.key === 'Enter') applySearch(headerSearchInput.value.trim());
 });
 
 searchInput.addEventListener('input', () => {
