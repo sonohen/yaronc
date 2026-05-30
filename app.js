@@ -28,6 +28,61 @@ function hideLoginError() {
   loginError.classList.add('hidden');
 }
 
+// ---- NIP-07 Extension login ----
+function initExtensionLogin() {
+  if (typeof window.nostr !== 'undefined') {
+    extensionLoginBtn.classList.remove('hidden');
+  } else {
+    extensionUnavailable.classList.remove('hidden');
+  }
+}
+
+extensionLoginBtn.addEventListener('click', async () => {
+  extensionLoginBtn.disabled = true;
+  extensionLoginBtn.textContent = '取得中...';
+  try {
+    const pubkey = await window.nostr.getPublicKey();
+    if (!pubkey || !/^[0-9a-f]{64}$/.test(pubkey)) {
+      showLoginError('拡張機能から公開鍵を取得できませんでした');
+      return;
+    }
+    currentUserHex = pubkey;
+    localStorage.setItem('nostr_pubkey', pubkey);
+    hideLoginError();
+    showApp();
+    connectAllRelays();
+    resetIdleTimer();
+    loadingText.textContent = 'フォローリストを取得中...';
+    fetchContactList(pubkey);
+    importExtensionRelays();
+  } catch (e) {
+    showLoginError('拡張機能の取得に失敗しました: ' + e.message);
+  } finally {
+    extensionLoginBtn.disabled = false;
+    extensionLoginBtn.textContent = '拡張機能でログイン';
+  }
+});
+
+async function importExtensionRelays() {
+  if (typeof window.nostr?.getRelays !== 'function') return;
+  try {
+    const relayMap = await window.nostr.getRelays();
+    const urls = parseExtensionRelays(relayMap);
+    if (urls.length === 0) return;
+    let added = 0;
+    for (const url of urls) {
+      if (!activeRelays.includes(url)) {
+        activeRelays.push(url);
+        added++;
+      }
+    }
+    if (added > 0) {
+      saveRelays();
+      renderRelayList();
+    }
+  } catch (_) {}
+}
+
 logoutBtn.addEventListener('click', () => {
   localStorage.removeItem('nostr_pubkey');
   currentUserHex = null;
@@ -1039,6 +1094,8 @@ function init() {
     const updated = typeof APP_UPDATED !== 'undefined' ? ` · ${APP_UPDATED}` : '';
     verEl.innerHTML = `<span>Nostr/o</span><span>v${version}${updated}</span>`;
   }
+  initExtensionLogin();
+
   const saved = localStorage.getItem('nostr_pubkey');
   if (saved) {
     loginInput.value = saved;

@@ -107,6 +107,10 @@ var fontSizeUpBtn        = document.getElementById('fontSizeUp');
 var headerSearchInput    = document.getElementById('headerSearchInput');
 var headerSearchClearBtn = document.getElementById('headerSearchClear');
 
+// NIP-07 Extension login
+var extensionLoginBtn    = document.getElementById('extensionLoginBtn');
+var extensionUnavailable = document.getElementById('extensionUnavailable');
+
 // Relay add UI
 var relayAddBtn  = document.getElementById('relayAddBtn');
 var relayInputEl = document.getElementById('relayInput');
