@@ -176,11 +176,17 @@ function connectOutboxRelay(url, pubkeys, since, limit) {
 }
 
 // ---- Relay connection ----
+function computeRelayListItems(relays, conns) {
+  return relays.map(url => ({
+    url,
+    status: conns.get(url)?.status ?? 'connecting',
+    displayText: url.replace('wss://', '').replace('ws://', ''),
+  }));
+}
+
 function renderRelayList() {
   relayListEl.innerHTML = '';
-  for (const url of activeRelays) {
-    const conn = connections.get(url);
-    const status = conn ? conn.status : 'connecting';
+  for (const { url, status, displayText } of computeRelayListItems(activeRelays, connections)) {
     const li = document.createElement('li');
     li.className = `relay-item ${status}`;
     li.dataset.url = url;
@@ -190,7 +196,7 @@ function renderRelayList() {
 
     const label = document.createElement('span');
     label.className = 'url';
-    label.textContent = url.replace('wss://', '');
+    label.textContent = displayText;
     label.title = url;
 
     const removeBtn = document.createElement('button');

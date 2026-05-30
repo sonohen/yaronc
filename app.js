@@ -84,6 +84,7 @@ async function importExtensionRelays() {
       activeRelays.push(url);
     }
     saveRelays();
+    renderRelayList();
   } catch (_) {}
 }
 
@@ -988,7 +989,7 @@ function applyTheme(light) {
 }
 
 // ---- Settings modal ----
-function openSettings() { settingsModal.classList.remove('hidden'); }
+function openSettings() { settingsModal.classList.remove('hidden'); renderRelayList(); }
 function closeSettings() { settingsModal.classList.add('hidden'); }
 
 settingsBtn.addEventListener('click', openSettings);
