@@ -34,6 +34,11 @@ function parseExtensionRelays(relayMap) {
     .map(([url]) => url);
 }
 
+function filterNewExtensionRelays(relayMap, existingRelays) {
+  const parsed = parseExtensionRelays(relayMap);
+  return parsed.filter(url => !existingRelays.includes(url));
+}
+
 // ---- NIP-65 Outbox model ----
 const NIP65_SUB = 'nip65-fetch';
 const MAX_OUTBOX_RELAYS = 6;

@@ -78,19 +78,14 @@ async function importExtensionRelays() {
   if (typeof window.nostr?.getRelays !== 'function') return;
   try {
     const relayMap = await window.nostr.getRelays();
-    const urls = parseExtensionRelays(relayMap);
-    if (urls.length === 0) return;
-    let added = 0;
-    for (const url of urls) {
-      if (!activeRelays.includes(url)) {
-        activeRelays.push(url);
-        added++;
-      }
+    const newUrls = filterNewExtensionRelays(relayMap, activeRelays);
+    if (newUrls.length === 0) return;
+    for (const url of newUrls) {
+      activeRelays.push(url);
+      connectRelay(url);
     }
-    if (added > 0) {
-      saveRelays();
-      renderRelayList();
-    }
+    saveRelays();
+    renderRelayList();
   } catch (_) {}
 }
 
