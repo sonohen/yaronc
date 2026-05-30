@@ -60,12 +60,12 @@ extensionLoginBtn.addEventListener('click', async () => {
     currentUserHex = pubkey;
     localStorage.setItem('nostr_pubkey', pubkey);
     hideLoginError();
+    await importExtensionRelays(); // リレーを先に確定してから接続
     showApp();
     connectAllRelays();
     resetIdleTimer();
     loadingText.textContent = 'フォローリストを取得中...';
     fetchContactList(pubkey);
-    importExtensionRelays();
   } catch (e) {
     showLoginError('拡張機能の取得に失敗しました: ' + e.message);
   } finally {
@@ -82,10 +82,8 @@ async function importExtensionRelays() {
     if (newUrls.length === 0) return;
     for (const url of newUrls) {
       activeRelays.push(url);
-      connectRelay(url);
     }
     saveRelays();
-    renderRelayList();
   } catch (_) {}
 }
 
