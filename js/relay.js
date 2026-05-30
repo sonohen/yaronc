@@ -39,6 +39,20 @@ function filterNewExtensionRelays(relayMap, existingRelays) {
   return parsed.filter(url => !existingRelays.includes(url));
 }
 
+function shouldShowContactError(received, expected, followCount, hasConnecting) {
+  if (expected <= 0) return false;
+  if (received < expected) return false;
+  if (hasConnecting) return false;
+  return followCount === 0;
+}
+
+function hasConnectingRelays(conns) {
+  for (const conn of conns.values()) {
+    if (conn.ws && conn.ws.readyState === WebSocket.CONNECTING) return true;
+  }
+  return false;
+}
+
 // ---- NIP-65 Outbox model ----
 const NIP65_SUB = 'nip65-fetch';
 const MAX_OUTBOX_RELAYS = 6;
@@ -255,6 +269,11 @@ function connectRelay(url) {
 
   ws.addEventListener('open', () => {
     updateRelayStatus(url, 'ok');
+    // フォローリスト取得中（contactEoseExpected>0）に遅れて接続したリレーにも REQ を送る
+    if (contactListTs === 0 && contactEoseExpected > 0 && currentUserHex) {
+      ws.send(JSON.stringify(['REQ', CONTACT_SUB, { kinds: [3], authors: [currentUserHex], limit: 1 }]));
+      contactEoseExpected++;
+    }
     if (mainSubId && followedPubkeys.size > 0) { sendMainSub(ws); sendZapSub(ws); }
     if (profileSubId && !profileModal.classList.contains('hidden') && profileCurrentPubkey) {
       const req = ['REQ', profileSubId, { kinds: [1, 6, 7], authors: [profileCurrentPubkey], limit: 60 }];
@@ -355,8 +374,10 @@ function fetchContactList(pubkey, retries = 0) {
       sent++;
     }
   }
-  contactEoseExpected = sent;
-  contactEoseReceived = 0;
+  if (sent > 0) {
+    contactEoseExpected = sent;
+    contactEoseReceived = 0;
+  }
   if (!sent) {
     if (retries < MAX_RETRIES) {
       setTimeout(() => fetchContactList(pubkey, retries + 1), 800);
@@ -677,11 +698,9 @@ function handleMessage(msg, ws) {
 
   if (type === 'EOSE' && subId === CONTACT_SUB) {
     contactEoseReceived++;
-    if (contactEoseReceived >= contactEoseExpected && contactEoseExpected > 0) {
-      if (followedPubkeys.size === 0) {
-        loadingEl.classList.add('hidden');
-        postListEl.innerHTML = '<div class="empty-state"><h3>フォローリストがありません</h3><p>このアカウントにはフォローリストが見つかりませんでした</p></div>';
-      }
+    if (shouldShowContactError(contactEoseReceived, contactEoseExpected, followedPubkeys.size, hasConnectingRelays(connections))) {
+      loadingEl.classList.add('hidden');
+      postListEl.innerHTML = '<div class="empty-state"><h3>フォローリストがありません</h3><p>このアカウントにはフォローリストが見つかりませんでした</p></div>';
     }
   }
 
