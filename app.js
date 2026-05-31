@@ -37,6 +37,8 @@ function initExtensionLogin() {
     if (typeof window.nostr !== 'undefined') {
       extensionLoginBtn.classList.remove('hidden');
       extensionUnavailable.classList.add('hidden');
+      // 保存済みキーで自動ログイン済みの場合、拡張機能検出時にリレーをインポートする
+      if (currentUserHex) importExtensionRelays();
       return;
     }
     if (++tries < 10) {
@@ -82,6 +84,7 @@ async function importExtensionRelays() {
     if (newUrls.length === 0) return;
     for (const url of newUrls) {
       activeRelays.push(url);
+      if (currentUserHex) connectRelay(url);
     }
     saveRelays();
     renderRelayList();
