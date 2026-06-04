@@ -397,13 +397,13 @@ function openProfileModal(pubkey) {
 
   renderProfilePosts();
 
-  if (evMap.size === 0) {
-    showProfileSpinner();
-  }
-
   profileModal.classList.remove('hidden');
   // 同一プロフィールが既に開いている場合は再フェッチ不要
   if (!alreadyOpen) fetchUserPosts(pubkey);
+
+  if (evMap.size === 0) {
+    showProfileSpinner();
+  }
 }
 
 // スピナーを表示し、8秒後に自動消去する
